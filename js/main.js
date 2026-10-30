@@ -327,10 +327,10 @@ function updateHUD(dt) {
     const P = sea.P, h = nh;
     const rel = Math.atan2(h.z - P.z, h.x - P.x) - P.h; // 船の向きから見た方向
     $('navArrow').style.transform = `rotate(${(rel * 180) / Math.PI - 90}deg)`;
-    const nn = nh.goal ? L('★ 巌流島（決戦）', '★ Ganryūjima (final battle)') : L(`⚓ ${islandName(nh.isl)}の港`, `⚓ Port of ${islandName(nh.isl)}`);
+    const nn = nh.goal ? L('巌流島', 'Ganryūjima') : islandName(nh.isl);
     if ($('navName').textContent !== nn) $('navName').textContent = nn;
     const km = nh.d * 10;
-    $('navInfo').textContent = (km >= 1000 ? `${(km / 1000).toFixed(1)}km` : `${Math.round(km)}m`) + (nh.goal ? (G.finalCleared ? L('　ゴール', ' · goal') : L(`　決戦 残り ${G.finalLeft ?? '?'} 艘`, ` · final battle: ${G.finalLeft ?? '?'} ships left`)) : L('　西の島・財宝あり', ' · next island west · treasure'));
+    $('navInfo').textContent = (km >= 1000 ? `${(km / 1000).toFixed(1)}km` : `${Math.round(km)}m`) + (nh.goal && G.final && !G.finalCleared ? L(`　残り${G.finalLeft ?? '?'}艘`, ` · ${G.finalLeft ?? '?'} left`) : '');
   }
   const fr = mode === 'sea' && sea && sea.front && !sea.front.e.sink ? sea.front : null;
   const tg = $('target');

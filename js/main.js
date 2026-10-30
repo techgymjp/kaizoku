@@ -2,6 +2,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { loadDEM, DEM } from './geo.js';
 import { Sea, hitChance } from './sea.js';
+import { crestCanvas } from './models.js';
 import { Island } from './island.js';
 import { Sfx } from './audio.js';
 import { $, msg, banner } from './ui.js';
@@ -126,6 +127,8 @@ function newGame() {
 
 async function boot() {
   applyHTML();
+  // 画面左上の紋：笹竜胆
+  { const mon = document.querySelector('.mon'); mon.textContent = ''; mon.style.backgroundImage = `url(${crestCanvas('rindo', '#f4f2ea', '#141414', 96).toDataURL()})`; mon.style.backgroundSize = 'cover'; }
   setLoad(L('瀬戸内海の地形を読み込んでいます……', 'Loading the Seto Inland Sea…'));
   await loadDEM();
   islands = await (await fetch('data/islands.json')).json();

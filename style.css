@@ -299,3 +299,4 @@ body.touch #minimap { width: min(44vw, 300px); height: min(31.4vw, 214px); left:
   #navInfo { font-size: 13px; font-weight: 800; }
 }
 @media (max-height: 500px) { #harborNav { top: 6px; } #navName { font-size: 13px; } }
+.mon { border-color: #c8c8c8; background-color: #f4f2ea; }

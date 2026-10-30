@@ -22,6 +22,41 @@ function cyl(rt, rb, h, color, seg = 8, parent) {
 }
 
 // ---- 家紋を描いた帆 ----
+// 笹竜胆（源氏の家紋）：上に竜胆の花 3 つ、下に笹の葉 5 枚
+export function drawRindo(g, fg, bg) {
+  g.save();
+  g.fillStyle = fg; g.strokeStyle = fg; g.lineCap = 'round';
+  const pivot = [0, 18];
+  // 笹の葉
+  for (const a of [-1.42, -0.72, 0, 0.72, 1.42]) {
+    g.save(); g.translate(pivot[0], pivot[1]); g.rotate(a);
+    g.beginPath(); g.moveTo(0, 6); g.quadraticCurveTo(26, 40, 0, 96); g.quadraticCurveTo(-26, 40, 0, 6); g.fill();
+    g.strokeStyle = bg; g.lineWidth = 2; g.beginPath(); g.moveTo(0, 14); g.lineTo(0, 82); g.stroke();
+    g.restore();
+  }
+  // 竜胆の花（3 つ）と茎
+  for (const [a, len] of [[-0.66, 66], [0, 76], [0.66, 66]]) {
+    g.save(); g.translate(pivot[0], pivot[1]); g.rotate(a);
+    g.lineWidth = 5; g.strokeStyle = fg; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -len + 22); g.stroke();
+    g.translate(0, -len); g.scale(1.45, 1.45);
+    // 3 枚の花びらの先がとがった杯の形
+    g.beginPath();
+    g.moveTo(-9, 24); g.quadraticCurveTo(-24, 6, -20, -16); g.lineTo(-10, -4); g.lineTo(0, -22); g.lineTo(10, -4); g.lineTo(20, -16); g.quadraticCurveTo(24, 6, 9, 24); g.closePath();
+    g.fill();
+    g.strokeStyle = bg; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(0, 20); g.lineTo(0, -12); g.moveTo(-6, 18); g.lineTo(-12, -6); g.moveTo(6, 18); g.lineTo(12, -6); g.stroke();
+    g.restore();
+  }
+  g.beginPath(); g.arc(pivot[0], pivot[1], 7, 0, Math.PI * 2); g.fill();
+  g.restore();
+}
+export function crestCanvas(kind, bg, fg, size = 256) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'); g.scale(size / 256, size / 256);
+  g.fillStyle = bg; g.fillRect(0, 0, 256, 256); g.translate(128, 128);
+  if (kind === 'rindo') drawRindo(g, fg, bg);
+  return c;
+}
 function crestTexture(kind, bg, fg) {
   const c = document.createElement('canvas'); c.width = c.height = 256;
   const g = c.getContext('2d');
@@ -31,7 +66,9 @@ function crestTexture(kind, bg, fg) {
   for (let x = 32; x < 256; x += 32) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 256); g.stroke(); }
   g.fillStyle = fg; g.strokeStyle = fg;
   g.translate(128, 128);
-  if (kind === 'kama') {
+  if (kind === 'rindo') {
+    drawRindo(g, fg, bg);
+  } else if (kind === 'kama') {
     // 違い鎌（小早川秀秋の家紋）
     g.beginPath(); g.arc(0, 0, 92, 0, Math.PI * 2); g.lineWidth = 10; g.stroke();
     for (const s of [1, -1]) {
@@ -239,8 +276,8 @@ function makeGalleon(type, opt) {
     });
     if (main) { const nest = cyl(0.8, 0.6, 0.5, '#4a3020', 8, g); nest.position.set(0, deckY + h * 0.8, z); }
     // 旗
-    const fm = new THREE.MeshLambertMaterial({ map: crestTexture(player ? 'skullkama' : 'skull', '#101010', '#f0f0e8'), side: THREE.DoubleSide });
-    const f = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.6, 4, 1), main ? fm : mat(player ? '#b0141a' : opt.flagColor || '#7a1010', { side: THREE.DoubleSide }));
+    const fm = new THREE.MeshLambertMaterial({ map: player ? crestTexture('rindo', '#f4f2ea', '#141414') : crestTexture('skull', '#101010', '#f0f0e8'), side: THREE.DoubleSide });
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.6, 4, 1), main ? fm : mat(player ? '#f4f2ea' : opt.flagColor || '#7a1010', { side: THREE.DoubleSide }));
     f.rotation.y = Math.PI / 2; f.position.set(0, deckY + h + 0.6, z - 1.2); g.add(f); flags.push(f);
   });
   // 三角帆（船首）
@@ -354,7 +391,7 @@ export function makeWarrior(kind = 'hero', color) {
   sword.visible = has === 'sword'; spear.visible = has === 'spear'; gun.visible = has === 'gun';
   if (kind === 'hero') { // 背中の指物（違い鎌の旗）
     const pole = box(0.04, 1.6, 0.04, '#3a2a1a', 0, 2.0, -0.22, body);
-    const fl = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.9), new THREE.MeshLambertMaterial({ map: crestTexture('kama', '#c0161b', '#f3ead6'), side: THREE.DoubleSide }));
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.9), new THREE.MeshLambertMaterial({ map: crestTexture('rindo', '#f4f2ea', '#141414'), side: THREE.DoubleSide }));
     fl.position.set(0.25, 2.3, -0.22); body.add(fl);
   }
   if (kind === 'boss') { box(0.04, 1.2, 0.04, '#3a2a1a', 0, 2.0, -0.22, body); box(0.5, 0.9, 0.02, color || '#2a2a40', 0.25, 2.2, -0.22, body); }

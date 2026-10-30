@@ -88,7 +88,8 @@ export class Sea {
     this.aimMark = new THREE.Mesh(new THREE.RingGeometry(2.2, 3, 24), new THREE.MeshBasicMaterial({ color: '#ffdc78', transparent: true, opacity: 0.8, depthWrite: false }));
     this.aimMark.rotation.x = -Math.PI / 2; S.add(this.aimMark);
     // ゴールの目印
-    const [gx, gz] = ll2sea(GOAL.lon, GOAL.lat);
+    let [gx, gz] = ll2sea(GOAL.lon, GOAL.lat);
+    for (let r = 0; r < 60 && hSea(gx, gz) > -3; r++) { let best = null; for (let a = 0; a < 16; a++) { const x = gx + Math.cos(a / 16 * TAU) * r * 3, z = gz + Math.sin(a / 16 * TAU) * r * 3; if (hSea(x, z) < -3 && (!best || hSea(x, z) < best[2])) best = [x, z, hSea(x, z)]; } if (best) { gx = best[0]; gz = best[1]; break; } }
     this.goal = { x: gx, z: gz };
     const gm = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, 300, 16, 1, true), new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
     gm.position.set(gx, 150, gz); S.add(gm); this.goalBeam = gm; gm.visible = false;
@@ -150,15 +151,15 @@ export class Sea {
           vec2 p = vW.xz;
           vec2 g = wave(p, normalize(vec2(1.0,0.3)), 0.21, 1.6, 0.35) + wave(p, normalize(vec2(-0.4,1.0)), 0.33, 2.1, 0.22) + wave(p, normalize(vec2(0.7,-0.8)), 0.9, 3.3, 0.06) + wave(p, normalize(vec2(-1.0,-0.2)), 1.7, 4.7, 0.03);
           float dist = length(cameraPosition - vW);
-          float fade = 1.0 / (1.0 + dist / 260.0);
+          float fade = 1.0 / (1.0 + dist / 140.0);
           vec3 n = normalize(vec3(-g.x * fade, 1.0, -g.y * fade));
           vec3 v = normalize(cameraPosition - vW);
           float fres = pow(1.0 - max(dot(n, v), 0.0), 4.0);
           float c = texture2D(coast, p / mapSize).r;
           vec3 col = mix(deep, shallow, smoothstep(0.35, 1.0, c));
-          col = mix(col, skyC, fres * 0.75);
+          col = mix(col, skyC, fres * 0.6);
           vec3 h = normalize(sunDir + v);
-          col += vec3(1.0, 0.95, 0.8) * pow(max(dot(n, h), 0.0), 220.0) * 1.6 * (0.3 + 0.7 * fade);
+          col += vec3(1.0, 0.95, 0.8) * pow(max(dot(n, h), 0.0), 220.0) * 1.6 * (0.3 + 0.7 * fade) * clamp(sunDir.y * 2.0, 0.15, 1.0);
           float foam = smoothstep(0.9, 0.99, c) * (0.6 + 0.4 * sin(time * 1.2 + (p.x + p.y) * 0.08)) * (0.4 + 0.6 * fade);
           col = mix(col, vec3(0.92, 0.95, 0.95), foam * 0.6);
           gl_FragColor = vec4(col, 1.0);
@@ -818,7 +819,7 @@ export class Sea {
   addWake(x, z, h, v, w) {
     if (Math.abs(v) < 5 || Math.random() > dtWake(v)) return;
     const bx = x - Math.cos(h) * w * 1.1, bz = z - Math.sin(h) * w * 1.1;
-    this.sprite('#ffffff', bx + rand(-0.8, 0.8), 0.25, bz + rand(-0.8, 0.8), rand(1.2, 2), 1.4, -Math.cos(h) * 2, 0, -Math.sin(h) * 2, 2.2);
+    this.sprite('#eef6f8', bx + rand(-0.6, 0.6), 0.2, bz + rand(-0.6, 0.6), rand(0.6, 1.1), 1.2, -Math.cos(h) * 2 + rand(-1.5, 1.5), 0, -Math.sin(h) * 2 + rand(-1.5, 1.5), 1.6);
   }
   updateParts(dt) {
     for (const p of this.parts) {
@@ -826,7 +827,7 @@ export class Sea {
       p.m.position.x += p.vx * dt; p.m.position.y += p.vy * dt; p.m.position.z += p.vz * dt;
       p.vy -= dt * (p.grow === 0 ? 30 : 0);
       p.m.scale.multiplyScalar(1 + dt * p.grow * 0.5);
-      p.m.material.opacity = clamp(p.life / p.max, 0, 1) * 0.8;
+      p.m.material.opacity = clamp(p.life / p.max, 0, 1) * 0.6;
     }
     this.parts = this.parts.filter((p) => { if (p.life <= 0) { this.scene.remove(p.m); p.m.material.dispose(); return false; } return true; });
   }

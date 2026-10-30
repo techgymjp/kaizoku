@@ -3,13 +3,14 @@
 export const Sfx = (() => {
   let ac = null, master = null, muted = false, noiseBuf = null;
   function init() {
-    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    if (ac) { if (ac.state !== 'running' && ac.state !== 'closed') ac.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     ac = new AC();
     master = ac.createGain();
     master.gain.value = muted ? 0 : 0.5;
-    master.connect(ac.destination);
+    const comp = ac.createDynamicsCompressor(); comp.threshold.value = -10; comp.ratio.value = 4;
+    master.connect(comp); comp.connect(ac.destination);
     noiseBuf = ac.createBuffer(1, ac.sampleRate * 1.5, ac.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -124,12 +125,12 @@ export const Sfx = (() => {
     g.gain.exponentialRampToValueAtTime(0.0001, end + 0.08);
   }
   // 弦の刻み（チェロ・コントラバス）：短く、強く
-  function strings(m, when, dur, vol = 0.09) {
+  function strings(m, when, dur, vol = 0.09, lite = false) {
     const t = ac.currentTime + when, f = mtof(m);
     const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 1.2;
     lp.frequency.setValueAtTime(f * 8, t); lp.frequency.exponentialRampToValueAtTime(f * 3, t + dur);
     const g = ac.createGain(); env(g, t, 0.008, vol, dur * 0.6, 0.35, t + dur * 0.85);
-    for (const d of [-8, 7]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d; o.connect(lp); o.start(t); o.stop(t + dur + 0.1); }
+    for (const d of lite ? [0] : [-8, 7]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d; o.connect(lp); o.start(t); o.stop(t + dur + 0.1); }
     lp.connect(g); g.connect(bgmBus);
   }
   // 金管（ホルン・トランペット）：吹き始めに音が開く
@@ -199,7 +200,7 @@ export const Sfx = (() => {
   // 残響
   let revIn = null;
   function makeReverb() {
-    const len = ac.sampleRate * 2.2, buf = ac.createBuffer(2, len, ac.sampleRate);
+    const len = ac.sampleRate * 1.4, buf = ac.createBuffer(2, len, ac.sampleRate);
     for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
     const cv = ac.createConvolver(); cv.buffer = buf;
     revIn = ac.createGain(); revIn.gain.value = 0.35;
@@ -232,10 +233,14 @@ export const Sfx = (() => {
   };
   let bgmBus = null, bgm = { mode: null, next: 0, step: 0, timer: null };
   function bgmTick() {
+    try { bgmStep(); } catch (e) { if (bgm.mode && ac) { bgm.next = ac.currentTime + 0.2; bgm.step++; } }
+  }
+  function bgmStep() {
     if (!ac || !bgm.mode) return;
     const S = SONGS[bgm.mode];
     const e8 = 60 / S.dq / 3; // 8分音符の長さ
     const total = S.bars.length * 6;
+    if (bgm.next < ac.currentTime - 0.1) { const skip = Math.ceil((ac.currentTime - bgm.next) / e8); bgm.step += skip; bgm.next += skip * e8; }
     while (bgm.next < ac.currentTime + 0.3) {
       const w = Math.max(0, bgm.next - ac.currentTime);
       const i = bgm.step % total, bar = (i / 6) | 0, pos = i % 6;
@@ -244,12 +249,12 @@ export const Sfx = (() => {
       // 低音の刻み（タタタ・タタタ）
       if (S.gallop) {
         const acc = pos === 0 || pos === 3;
-        strings(root - 12, w, e8 * 0.6, acc ? 0.09 : 0.06); // コントラバス
+        if (acc) strings(root - 12, w, e8 * 0.6, 0.09, true); // コントラバス
         strings(root, w, e8 * 0.55, acc ? 0.12 : 0.08); // チェロ：休まず刻む
         if (S.gallop > 1) strings(root + 12, w, e8 * 0.5, acc ? 0.06 : 0.035);
         if (S.stabs) { // 中音の弦の和音：ダダ・ダン
-          if (acc) for (const m of chord) strings(m + 12, w, e8 * 0.7, 0.04);
-          else if (pos === 2 || pos === 5) for (const m of chord) strings(m + 12, w, e8 * 0.4, 0.025);
+          if (acc) for (const m of chord) strings(m + 12, w, e8 * 0.7, 0.04, true);
+          else if (pos === 2 || pos === 5) for (const m of chord) strings(m + 12, w, e8 * 0.4, 0.025, true);
         } else if (!S.low && pos % 3 === 1) strings(chord[1] + 12, w, e8 * 0.7, 0.035);
       } else if (pos === 0) strings(root, w, e8 * 5, 0.06);
       if (pos === 0) {
@@ -274,7 +279,7 @@ export const Sfx = (() => {
       for (const [p, m, len] of S.mel) if (p === i) {
         brass(m, w, e8 * len * 0.95, S.drums === 'battle' ? 0.075 : 0.065, S.drums === 'doom' ? 0.7 : 1);
         if (S.drums === 'battle' || S.drums === 'doom' || S.double) brass(m - 12, w, e8 * len * 0.95, S.double ? 0.05 : 0.04, 0.6); // 低い金管で重ねる
-        if (S.double) strings(m + 12, w, e8 * len * 0.9, 0.022); // 高い弦も同じ旋律
+        if (S.double) strings(m + 12, w, e8 * len * 0.9, 0.022, true); // 高い弦も同じ旋律
       }
       bgm.next += e8; bgm.step++;
     }
@@ -294,7 +299,8 @@ export const Sfx = (() => {
     swell(amt) { if (crowd) { crowd.boost = Math.max(crowd.boost, amt); crowd.last = 0; } },
     // アプリが裏に回ったときなどに音を止める／再開する
     suspend() { if (ac && ac.state === 'running') ac.suspend(); },
-    resume() { if (ac && ac.state === 'suspended') ac.resume(); },
+    resume() { if (ac && ac.state !== 'running' && ac.state !== 'closed') ac.resume(); },
+    get state() { return ac ? ac.state : 'none'; },
     get muted() { return muted; },
     toggle() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.5; return muted; },
     slash() { noise(0.12, 3200, 0.8, 0.35, 'highpass'); },

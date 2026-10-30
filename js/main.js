@@ -323,7 +323,11 @@ function updateHUD(dt) {
   if (nh) {
     const P = sea.P, h = nh.isl.harbor;
     const rel = Math.atan2(h.z - P.z, h.x - P.x) - P.h; // 船の向きから見た方向
-    nv.innerHTML = `<i style="transform: rotate(${(rel * 180) / Math.PI - 90}deg)">➤</i>${L('最寄りの港', 'Nearest port')}：<b>${islandName(nh.isl)}</b> ${(nh.d / 100).toFixed(1)}km`;
+    $('navArrow').style.transform = `rotate(${(rel * 180) / Math.PI - 90}deg)`;
+    const nn = L(`⚓ ${islandName(nh.isl)}の港`, `⚓ Port of ${islandName(nh.isl)}`);
+    if ($('navName').textContent !== nn) $('navName').textContent = nn;
+    const km = nh.d * 10;
+    $('navInfo').textContent = (km >= 1000 ? `${(km / 1000).toFixed(1)}km` : `${Math.round(km)}m`) + L('　財宝あり・入れば上陸', ' · treasure · sail in to land');
   }
   const fr = mode === 'sea' && sea && sea.front && !sea.front.e.sink ? sea.front : null;
   const tg = $('target');
@@ -374,6 +378,10 @@ addEventListener('resize', () => {
   if (sea) sea.resize(); if (island) island.resize();
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { if (G && G.state === 'play') togglePause(); Sfx.suspend(); } else Sfx.resume(); });
+// 電話や通知などで音が止まったときは、次に触ったときに戻す
+addEventListener('pointerdown', () => Sfx.resume(), true);
+addEventListener('touchstart', () => Sfx.resume(), { capture: true, passive: true });
+setInterval(() => { if (!document.hidden && Sfx.state === 'interrupted') Sfx.resume(); }, 2000);
 
 window.__kz = { get G() { return G; }, get sea() { return sea; }, get island() { return island; }, I };
 boot().catch((e) => { console.error(e); setLoad('読み込みに失敗しました / Failed to load: ' + e.message); });

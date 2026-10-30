@@ -175,6 +175,13 @@ export const Sfx = (() => {
     const ng = ac.createGain(); ng.gain.setValueAtTime(vol * 0.5, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
     n.connect(nf); nf.connect(ng); ng.connect(bgmBus); n.start(t, Math.random()); n.stop(t + 0.15);
   }
+  function taikoKick(when, vol = 0.2) {
+    const t = ac.currentTime + when;
+    const o = ac.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+    const g = ac.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.connect(g); g.connect(bgmBus); o.start(t); o.stop(t + 0.4);
+  }
   function snare(when, vol = 0.08) {
     const t = ac.currentTime + when;
     const n = ac.createBufferSource(); n.buffer = noiseBuf;
@@ -204,17 +211,12 @@ export const Sfx = (() => {
   const CH = { Dm: [50, 53, 57], C: [48, 52, 55], Bb: [46, 50, 53], A: [45, 49, 52], Gm: [43, 46, 50], F: [41, 45, 48], Am: [45, 48, 52], E: [40, 44, 47], D: [50, 54, 57], G: [43, 47, 50], Eb: [51, 55, 58], Bbm: [46, 49, 53], Cm: [48, 51, 55] };
   // 旋律は [8分音符での位置, MIDI 音, 長さ]。1 小節 = 8分音符 6 つ（6/8 拍子）
   const SONGS = {
-    // 航海：勇ましく、少し哀しい主題
-    sea: { dq: 66, bars: ['Dm', 'Dm', 'Bb', 'C', 'Dm', 'Gm', 'A', 'A', 'F', 'C', 'Bb', 'A', 'Dm', 'Gm', 'A', 'Dm'], gallop: 1, drums: 'march',
-      mel: [[0, 69, 2], [2, 74, 1], [3, 76, 2], [5, 77, 1], [6, 76, 3], [9, 74, 3], [12, 77, 2], [14, 79, 1], [15, 81, 2], [17, 82, 1], [18, 81, 3], [21, 79, 2], [23, 76, 1],
-        [24, 77, 2], [26, 76, 1], [27, 74, 2], [29, 69, 1], [30, 70, 3], [33, 74, 2], [35, 79, 1], [36, 77, 2], [38, 76, 1], [39, 73, 2], [41, 69, 1], [42, 76, 6],
-        [48, 72, 2], [50, 77, 1], [51, 81, 3], [54, 79, 2], [56, 76, 1], [57, 72, 3], [60, 74, 2], [62, 77, 1], [63, 82, 3], [66, 81, 2], [68, 79, 1], [69, 76, 3],
-        [72, 81, 2], [74, 77, 1], [75, 74, 2], [77, 77, 1], [78, 79, 2], [80, 82, 1], [81, 81, 3], [84, 76, 2], [86, 73, 1], [87, 76, 3], [90, 74, 6]] },
-    // 海戦：速く激しい。金管の連打と打楽器
-    battle: { dq: 84, bars: ['Dm', 'C', 'Bb', 'A', 'Dm', 'C', 'Bb', 'A', 'Gm', 'Dm', 'Eb', 'A'], gallop: 2, drums: 'battle',
-      mel: [[0, 74, 1], [1, 74, 1], [2, 74, 1], [3, 77, 2], [5, 76, 1], [6, 72, 1], [7, 72, 1], [8, 72, 1], [9, 76, 2], [11, 74, 1], [12, 70, 2], [14, 74, 1], [15, 77, 2], [17, 82, 1], [18, 81, 4], [22, 76, 2],
-        [24, 74, 1], [25, 74, 1], [26, 74, 1], [27, 81, 2], [29, 79, 1], [30, 76, 1], [31, 76, 1], [32, 76, 1], [33, 79, 2], [35, 77, 1], [36, 74, 2], [38, 77, 1], [39, 82, 2], [41, 81, 1], [42, 81, 6],
-        [48, 79, 2], [50, 77, 1], [51, 74, 3], [54, 74, 2], [56, 77, 1], [57, 81, 3], [60, 82, 2], [62, 79, 1], [63, 75, 3], [66, 76, 2], [68, 73, 1], [69, 69, 3]] },
+    // 航海：海賊映画のような疾走する 6/8。低弦の刻み、和音の叩き、ホルンの主題（新しく作曲）
+    sea: { dq: 100, bars: ['Dm', 'Dm', 'Bb', 'C', 'Dm', 'Bb', 'A', 'Dm', 'F', 'C', 'Dm', 'A', 'Bb', 'Gm', 'A', 'A'], gallop: 2, drums: 'pirate', stabs: true, double: true,
+      mel: [[0, 74, 2], [2, 69, 1], [3, 74, 1], [4, 77, 2], [6, 76, 1], [7, 74, 1], [8, 72, 1], [9, 74, 3], [12, 70, 2], [14, 74, 1], [15, 77, 1], [16, 82, 2], [18, 81, 1], [19, 79, 1], [20, 77, 1], [21, 76, 3], [24, 77, 2], [26, 81, 1], [27, 86, 3], [30, 84, 1], [31, 82, 1], [32, 81, 1], [33, 79, 2], [35, 77, 1], [36, 76, 2], [38, 79, 1], [39, 73, 2], [41, 76, 1], [42, 74, 6], [48, 81, 3], [51, 79, 2], [53, 77, 1], [54, 79, 1], [55, 81, 1], [56, 79, 1], [57, 76, 3], [60, 77, 2], [62, 76, 1], [63, 74, 2], [65, 77, 1], [66, 76, 2], [68, 73, 1], [69, 69, 3], [72, 74, 1], [73, 77, 1], [74, 82, 1], [75, 81, 2], [77, 79, 1], [78, 79, 2], [80, 77, 1], [81, 74, 3], [84, 76, 1], [85, 77, 1], [86, 79, 1], [87, 81, 2], [89, 79, 1], [90, 76, 3], [93, 81, 3]] },
+    // 海戦：さらに速く、金管の連打
+    battle: { dq: 112, bars: ['Dm', 'C', 'Bb', 'A', 'Dm', 'Bb', 'Gm', 'A'], gallop: 2, drums: 'battle', stabs: true, double: true,
+      mel: [[0, 74, 1], [1, 74, 1], [2, 77, 1], [3, 81, 2], [5, 79, 1], [6, 77, 1], [7, 76, 1], [8, 74, 1], [9, 76, 3], [12, 74, 1], [13, 74, 1], [14, 77, 1], [15, 82, 2], [17, 81, 1], [18, 79, 2], [20, 76, 1], [21, 73, 3], [24, 74, 1], [25, 74, 1], [26, 77, 1], [27, 86, 2], [29, 84, 1], [30, 82, 1], [31, 81, 1], [32, 79, 1], [33, 81, 3], [36, 82, 2], [38, 81, 1], [39, 79, 2], [41, 76, 1], [42, 73, 3], [45, 69, 3]] },
     // 島：低い弦の刻みが続く、忍び寄る緊張
     island: { dq: 72, bars: ['Dm', 'Dm', 'Bb', 'A', 'Gm', 'Gm', 'Bb', 'A'], gallop: 1, drums: 'sneak', low: true,
       mel: [[0, 62, 3], [3, 65, 3], [6, 64, 2], [8, 61, 1], [9, 62, 3], [12, 65, 3], [15, 69, 3], [18, 70, 2], [20, 69, 1], [21, 64, 3],
@@ -242,9 +244,13 @@ export const Sfx = (() => {
       // 低音の刻み（タタタ・タタタ）
       if (S.gallop) {
         const acc = pos === 0 || pos === 3;
-        strings(root, w, e8 * 0.9, acc ? 0.11 : 0.07);
-        if (S.gallop > 1 || acc) strings(root + 12, w, e8 * 0.8, acc ? 0.06 : 0.04);
-        if (!S.low && pos % 3 === 1) strings(chord[1] + 12, w, e8 * 0.7, 0.035);
+        strings(root - 12, w, e8 * 0.6, acc ? 0.09 : 0.06); // コントラバス
+        strings(root, w, e8 * 0.55, acc ? 0.12 : 0.08); // チェロ：休まず刻む
+        if (S.gallop > 1) strings(root + 12, w, e8 * 0.5, acc ? 0.06 : 0.035);
+        if (S.stabs) { // 中音の弦の和音：ダダ・ダン
+          if (acc) for (const m of chord) strings(m + 12, w, e8 * 0.7, 0.04);
+          else if (pos === 2 || pos === 5) for (const m of chord) strings(m + 12, w, e8 * 0.4, 0.025);
+        } else if (!S.low && pos % 3 === 1) strings(chord[1] + 12, w, e8 * 0.7, 0.035);
       } else if (pos === 0) strings(root, w, e8 * 5, 0.06);
       if (pos === 0) {
         pad(chord.map((m) => m + 12), w, e8 * 6, S.low ? 0.018 : 0.026);
@@ -253,7 +259,13 @@ export const Sfx = (() => {
       }
       // 打楽器
       const D = S.drums;
-      if (D === 'march') { if (pos === 0) timpani(38, w, 0.28); if (pos === 3) timpani(45, w, 0.18); if (pos === 5) snare(w, 0.05); }
+      if (D === 'pirate') {
+        if (pos === 0) { timpani(38, w, 0.3); taikoKick(w, 0.22); }
+        if (pos === 3) timpani(45, w, 0.2);
+        if (pos === 2 || pos === 5) snare(w, 0.045);
+        if (pos === 0 && bar % 4 === 0) cymbal(w, 0.07);
+        if (bar % 8 === 7 && pos >= 3) { for (let k = 0; k < 3; k++) snare(w + k * e8 / 3, 0.05 + pos * 0.008); } // フレーズの終わりのロール
+      } else if (D === 'march') { if (pos === 0) timpani(38, w, 0.28); if (pos === 3) timpani(45, w, 0.18); if (pos === 5) snare(w, 0.05); }
       else if (D === 'battle') { if (pos === 0 || pos === 3) timpani(pos ? 45 : 38, w, 0.3); snare(w, pos === 2 || pos === 5 ? 0.09 : 0.035); }
       else if (D === 'sneak') { if (pos === 0) timpani(38, w, 0.2); if (pos === 4 && bar % 2 === 1) timpani(37, w, 0.12); }
       else if (D === 'doom') { if (pos === 0) timpani(38, w, 0.38); if (pos === 3 && bar % 2 === 1) for (let k = 0; k < 3; k++) timpani(38, w + k * e8 / 3, 0.15); }
@@ -261,7 +273,8 @@ export const Sfx = (() => {
       // 旋律（金管）
       for (const [p, m, len] of S.mel) if (p === i) {
         brass(m, w, e8 * len * 0.95, S.drums === 'battle' ? 0.075 : 0.065, S.drums === 'doom' ? 0.7 : 1);
-        if (S.drums === 'battle' || S.drums === 'doom') brass(m - 12, w, e8 * len * 0.95, 0.04, 0.6); // 低い金管で重ねる
+        if (S.drums === 'battle' || S.drums === 'doom' || S.double) brass(m - 12, w, e8 * len * 0.95, S.double ? 0.05 : 0.04, 0.6); // 低い金管で重ねる
+        if (S.double) strings(m + 12, w, e8 * len * 0.9, 0.022); // 高い弦も同じ旋律
       }
       bgm.next += e8; bgm.step++;
     }

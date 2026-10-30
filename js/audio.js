@@ -6,7 +6,7 @@ export const Sfx = (() => {
     if (ac) { if (ac.state !== 'running' && ac.state !== 'closed') ac.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    ac = new AC();
+    try { ac = new AC({ latencyHint: 'playback' }); } catch (e) { ac = new AC(); } // 大きめのバッファで途切れにくく
     master = ac.createGain();
     master.gain.value = muted ? 0 : 0.5;
     const comp = ac.createDynamicsCompressor(); comp.threshold.value = -10; comp.ratio.value = 4;
@@ -70,8 +70,11 @@ export const Sfx = (() => {
       v.o.frequency.setTargetAtTime(v.base * (1 + L * 0.35) * (0.94 + Math.random() * 0.12), t, 0.3);
     }
   }
+  let voices = 0;
+  const VOICE_MAX = 40;
+  const track = (node) => { voices++; node.onended = () => { voices--; }; };
   function noise(dur, freq, q, vol, type = 'bandpass', when = 0) {
-    if (!ac) return;
+    if (!ac || voices > VOICE_MAX) return;
     const t = ac.currentTime + when;
     const src = ac.createBufferSource(); src.buffer = noiseBuf;
     const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
@@ -79,10 +82,10 @@ export const Sfx = (() => {
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     src.connect(f); f.connect(g); g.connect(master);
-    src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.05);
+    track(src); src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.05);
   }
   function tone(freq, dur, vol, type = 'sine', slide = 0, when = 0) {
-    if (!ac) return;
+    if (!ac || voices > VOICE_MAX) return;
     const t = ac.currentTime + when;
     const o = ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, freq * slide), t + dur);
@@ -91,7 +94,7 @@ export const Sfx = (() => {
     g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g); g.connect(master);
-    o.start(t); o.stop(t + dur + 0.05);
+    track(o); o.start(t); o.stop(t + dur + 0.05);
   }
   // ---- ここから瀬戸内の海賊王で足した音 ----
   // 波の音（ずっと鳴らしておき、海モードで大きくする）
@@ -240,8 +243,8 @@ export const Sfx = (() => {
     const S = SONGS[bgm.mode];
     const e8 = 60 / S.dq / 3; // 8分音符の長さ
     const total = S.bars.length * 6;
-    if (bgm.next < ac.currentTime - 0.1) { const skip = Math.ceil((ac.currentTime - bgm.next) / e8); bgm.step += skip; bgm.next += skip * e8; }
-    while (bgm.next < ac.currentTime + 0.3) {
+    if (bgm.next < ac.currentTime + 0.02) { const skip = Math.ceil((ac.currentTime - bgm.next) / e8); bgm.step += skip; bgm.next += skip * e8; }
+    while (bgm.next < ac.currentTime + 1.2) {
       const w = Math.max(0, bgm.next - ac.currentTime);
       const i = bgm.step % total, bar = (i / 6) | 0, pos = i % 6;
       const chord = CH[S.bars[bar]];
@@ -287,8 +290,12 @@ export const Sfx = (() => {
   function setBgm(mode) {
     if (!ac) { bgm.mode = mode; return; }
     if (bgm.mode === mode && bgm.timer) return;
+    // 航海と海戦の曲が行ったり来たりしないよう、切り替えは 10 秒に 1 回まで
+    const calm = (m) => m === 'sea' || m === 'battle';
+    if (calm(mode) && calm(bgm.mode) && ac.currentTime - (bgm.switchedAt || -99) < 10) return;
+    bgm.switchedAt = ac.currentTime;
     bgm.mode = mode; bgm.step = 0; bgm.next = ac.currentTime + 0.3;
-    if (!bgm.timer) bgm.timer = setInterval(bgmTick, 90);
+    if (!bgm.timer) bgm.timer = setInterval(bgmTick, 200);
     if (mode === 'final') setTimeout(() => api.horn(0.4, 0, 0.8, [0.8, 0.8, 2.2]), 400);
   }
   let lastHit = 0;

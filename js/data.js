@@ -1,6 +1,6 @@
 // 瀬戸内の海賊王 — 地理・名所・橋・海域のデータ（座標は経度・緯度。高さ・長さは実際の m）
 
-// 出発（大阪湾）とゴール（下関・唐戸）
+// 出発（姫路港）とゴール（巌流島）
 // 出航は姫路港（飾磨）
 export const START = { lon: 134.655, lat: 34.752, heading: 2.3 };
 // 風：東から西へ吹く（西へ進むと速い）
@@ -18,10 +18,10 @@ export const STRAITS = [
   { name: '釣島水道', en: 'Tsurushima Channel', lon: 132.62, lat: 33.90, r: 3500, flood: 30, kt: 4 },
   { name: '関門海峡', en: 'Kanmon Strait', lon: 130.963, lat: 33.963, r: 3000, flood: 70, kt: 9 },
 ];
-export const GOAL = { lon: 130.9440, lat: 33.9585, name: '下関・唐戸', en: 'Karato, Shimonoseki' };
+export const GOAL = { lon: 130.9117, lat: 33.9483, name: '巌流島', en: 'Ganryūjima' };
 // 壇ノ浦の決戦が始まる経度
 export const FINAL_LON = 131.03;
-export const DANNOURA = { lon: 130.962, lat: 33.963 };
+export const DANNOURA = { lon: 130.925, lat: 33.952 }; // 決戦で平家の船団が集まる所（巌流島の沖から壇ノ浦へ）
 
 // 橋：a, b は両岸（おおよそ）。実行時に標高データで海の部分を探して架ける
 // towers: 主塔の位置（橋の長さに対する割合）、towerH / deck: 主塔の高さ・桁下の高さ（m）
@@ -62,6 +62,7 @@ export const LANDMARKS = [
   { id: 'akama', name: '赤間神宮 水天門', en: 'the Suitenmon gate of Akama Shrine', kind: 'suitenmon', lon: 130.94850, lat: 33.96000, h: 12 },
   { id: 'dannoura', name: '壇ノ浦古戦場', en: 'the Dan-no-ura battlefield', kind: 'tomomori', lon: 130.95740, lat: 33.96820, h: 6 },
   { id: 'mojiko', name: '和布刈神社', en: 'Mekari Shrine', kind: 'shrine', lon: 130.96430, lat: 33.96060, h: 6 },
+  { id: 'ganryu', name: '巌流島（船島）', en: 'Ganryūjima (Funashima)', kind: 'tomomori', lon: 130.9117, lat: 33.9483, h: 6 },
   { id: 'tomogashima', name: '友ヶ島灯台', en: 'Tomogashima Lighthouse', kind: 'lighthouse', lon: 135.0020, lat: 34.2800, h: 12 },
 ];
 
@@ -157,13 +158,13 @@ export const ISLAND_NOTES = {
 export const STORY = [
   '慶長七年。関ヶ原で東西両軍を斬り抜けた{name}は、死んだことにして姫路の港へ落ちのびた。',
   '手に入れたのは一艘の海賊船。黒い帆には髑髏と違い鎌。',
-  '追い風を受けて目指すは西の果て、下関。瀬戸内の島々に眠る財宝を奪い、黒ひげ・バルバロッサ・村上武吉・鄭一嫂——古今東西の海賊どもを沈め、',
+  '追い風を受けて目指すは西の果て、巌流島。瀬戸内の島々に眠る財宝を奪い、黒ひげ・バルバロッサ・村上武吉・鄭一嫂——古今東西の海賊どもを沈め、',
   '壇ノ浦に巣くう平家の怨霊を討ち果たせば——その名は「瀬戸内の海賊王」。',
 ];
 export const STORY_EN = [
   'Keichō 7 (1602). Having cut through both armies at Sekigahara, {name} faked a death and slipped away to the port of Himeji.',
   'All that is left is one pirate ship, its black sails marked with a skull and crossed sickles.',
-  'Sail west to Shimonoseki. Plunder the island treasures and sink the pirates of every age and land — Blackbeard, Barbarossa, Murakami Takeyoshi, Ching Shih.',
+  'Sail west to Ganryūjima. Plunder the island treasures and sink the pirates of every age and land — Blackbeard, Barbarossa, Murakami Takeyoshi, Ching Shih.',
   'Destroy the Heike ghosts haunting Dan-no-ura — and you will be the Pirate King of the Seto Inland Sea.',
 ];
 

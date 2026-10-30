@@ -187,7 +187,7 @@ function start() {
   sea.camInit = false;
   Sfx.bgm('sea');
   Sfx.horn(0.4);
-  banner(L('姫路港より出航', 'Setting sail from Himeji'), L('追い風を受けて西へ——目指すは下関', 'A tailwind blows west — for Shimonoseki'));
+  banner(L('姫路港より出航', 'Setting sail from Himeji'), L('追い風を受けて西へ——目指すは巌流島', 'A tailwind blows west — for Ganryūjima'));
   msg(L('帆を張れ！ 風は西へ吹いている。潮の流れに気をつけろ。', 'Raise the sail! The wind blows west — mind the tidal currents.'), 'sys', 5);
   setTimeout(() => msg(L('金色の光の柱が港。⚓の港に入れば自動で上陸し、財宝を奪いに行ける。', 'Golden pillars of light mark the ports. Sail into a ⚓ port to land and raid its treasure.'), 'sys', 6), 4000);
   updateHelp();
@@ -258,7 +258,7 @@ function onGoal() {
   if (G.state !== 'play') return;
   G.state = 'clearing'; G.endT = 0;
   Sfx.bgm('clear'); Sfx.fanfare(); Sfx.bell();
-  banner(L('下関に着いた！', 'You reached Shimonoseki!'), L(`瀬戸内の海賊王・${playerName()}、ここに誕生`, `${playerName()}, Pirate King of the Seto Inland Sea, is born`));
+  banner(L('巌流島に着いた！', 'You reached Ganryūjima!'), L(`瀬戸内の海賊王・${playerName()}、ここに誕生`, `${playerName()}, Pirate King of the Seto Inland Sea, is born`));
 }
 
 // ---------------- 結果 ----------------
@@ -278,7 +278,7 @@ function showResult(clear) {
   const h = $('rHead');
   h.textContent = clear ? L('海賊王', 'PIRATE KING') : L('無　念', 'DEFEATED');
   h.classList.toggle('clear', clear);
-  $('rPlace').textContent = clear ? L('壇ノ浦の怨霊を鎮め、下関に至る', 'Laid the Heike ghosts of Dan-no-ura to rest and reached Shimonoseki') : G.deathPlace || '';
+  $('rPlace').textContent = clear ? L('平家の怨霊を鎮め、巌流島に至る', 'Laid the Heike ghosts to rest and reached Ganryūjima') : G.deathPlace || '';
   $('rTitle').textContent = L(`船長 ${playerName()}　称号：`, `Captain ${playerName()} — `) + rank(clear);
   $('rGold').textContent = G.gold.toLocaleString() + L(' 両', ' ryō');
   $('rIsl').textContent = `${G.taken.size} / ${islands.length}`;
@@ -319,18 +319,18 @@ function updateHUD(dt) {
   let place = '';
   if (mode === 'island' && island) place = islandName(island.isl);
   else if (sea && sea.zone) place = zoneName(sea.zone);
-  if (G.final && !G.finalCleared) place = L(`壇ノ浦　残り ${G.finalLeft ?? '?'} 艘`, `Dan-no-ura: ${G.finalLeft ?? '?'} ships left`);
+  if (G.final && !G.finalCleared) place = L(`決戦　残り ${G.finalLeft ?? '?'} 艘`, `Final battle: ${G.finalLeft ?? '?'} ships left`);
   $('hPlace').textContent = place;
   const nv = $('harborNav'), nh = mode === 'sea' && sea ? sea.nav : null;
-  nv.classList.toggle('hidden', !nh || (G.final && !G.finalCleared));
+  nv.classList.toggle('hidden', !nh);
   if (nh) {
     const P = sea.P, h = nh;
     const rel = Math.atan2(h.z - P.z, h.x - P.x) - P.h; // 船の向きから見た方向
     $('navArrow').style.transform = `rotate(${(rel * 180) / Math.PI - 90}deg)`;
-    const nn = nh.goal ? L('★ 下関（唐戸）', '★ Shimonoseki (Karato)') : L(`⚓ ${islandName(nh.isl)}の港`, `⚓ Port of ${islandName(nh.isl)}`);
+    const nn = nh.goal ? L('★ 巌流島（決戦）', '★ Ganryūjima (final battle)') : L(`⚓ ${islandName(nh.isl)}の港`, `⚓ Port of ${islandName(nh.isl)}`);
     if ($('navName').textContent !== nn) $('navName').textContent = nn;
     const km = nh.d * 10;
-    $('navInfo').textContent = (km >= 1000 ? `${(km / 1000).toFixed(1)}km` : `${Math.round(km)}m`) + (nh.goal ? L('　ゴール', ' · goal') : L('　西の島・財宝あり', ' · next island west · treasure'));
+    $('navInfo').textContent = (km >= 1000 ? `${(km / 1000).toFixed(1)}km` : `${Math.round(km)}m`) + (nh.goal ? (G.finalCleared ? L('　ゴール', ' · goal') : L('　平家の船団を全て沈めよ', ' · sink the whole Heike fleet')) : L('　西の島・財宝あり', ' · next island west · treasure'));
   }
   const fr = mode === 'sea' && sea && sea.front && !sea.front.e.sink ? sea.front : null;
   const tg = $('target');

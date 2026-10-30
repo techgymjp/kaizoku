@@ -1,7 +1,7 @@
 // 海モード：瀬戸内海を海賊船で西へ。敵の海賊船を鉄砲で撃ち、島に上陸する
 import * as THREE from './vendor/three.module.min.js';
 import { DEM, SEA_K, VEX, hPx, hSea, ll2sea, sea2ll, ll2px, isLandPx, compAt, nearestLandPx } from './geo.js';
-import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, FINAL_LON, DANNOURA, shipName, WIND, TIDE, STRAITS, HARBOR_HINT } from './data.js';
+import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, DANNOURA, shipName, WIND, TIDE, STRAITS, HARBOR_HINT } from './data.js';
 import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
@@ -364,7 +364,7 @@ export class Sea {
     }
     return best ? { isl: best, d: bd } : null;
   }
-  // 案内する島：いまの場所より西にある、財宝の残る島のうちいちばん近い港。無ければ下関
+  // 案内する島：いまの場所より西にある、財宝の残る島のうちいちばん近い港。無ければ巌流島（そこで決戦）
   navHarbor() {
     const P = this.P; let best = null, bd = 1e9;
     for (const isl of this.G.islands) {
@@ -505,7 +505,7 @@ export class Sea {
     // ゴール
     g.fillStyle = '#ffffff'; g.font = '700 11px serif';
     const gx = tx(this.goal.x), gy = ty(this.goal.z);
-    if (gx > 0 && gx < W && gy > 0 && gy < H) { g.fillText(L('★下関', '★Shimonoseki'), gx - 6, gy + 4); }
+    if (gx > 0 && gx < W && gy > 0 && gy < H) { g.fillText(L('★巌流島', '★Ganryūjima'), gx - 6, gy + 4); }
     // 自船
     g.save(); g.translate(tx(P.x), ty(P.z)); g.rotate(P.h);
     g.fillStyle = '#ff3a2a'; g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(11, 0); g.lineTo(-7, -6); g.lineTo(-3, 0); g.lineTo(-7, 6); g.closePath(); g.fill(); g.stroke();
@@ -609,7 +609,8 @@ export class Sea {
   startFinal() {
     const G = this.G;
     G.final = true;
-    banner(L('壇ノ浦の決戦', 'Battle of Dan-no-ura'), L('平家の怨霊船団が現れた。一艘残らず沈めよ', 'The ghost fleet of the Heike rises. Sink every last ship!'));
+    banner(L('決戦', 'The final battle'), L('平家の怨霊船団が巌流島に集結した。一艘残らず沈めよ', 'The Heike ghost fleet gathers at Ganryūjima. Sink every last ship!'));
+    this.goalBeam.visible = true;
     msg(L('「見るべきほどのことは見つ。今はただ自害せん」——平知盛の怨念が海を覆う', '“I have seen all there is to see.” — the grudge of Taira no Tomomori covers the sea'), 'say', 7);
     Sfx.bgm('final');
     flash('rgba(120,0,0,0.35)');
@@ -768,11 +769,12 @@ export class Sea {
       if (this.zone) banner(N(zone), L(zone.faction.name + 'の海', 'Waters of the ' + zone.faction.en));
       this.zone = zone;
     }
-    if (!G.final && lon < FINAL_LON) this.startFinal();
+    // 最後の島を過ぎ、ナビに巌流島が出たら決戦（近づいたときも）
+    if (!G.final && ((this.nav && this.nav.goal) || Math.hypot(P.x - this.goal.x, P.z - this.goal.z) < 1200)) this.startFinal();
     if (G.final) {
       const left = this.enemies.filter((e) => e.final && !e.sink).length;
       G.finalLeft = left;
-      if (left === 0 && !G.finalCleared) { G.finalCleared = true; banner(L('平家の怨霊、鎮まる', 'The Heike ghosts are laid to rest'), L('下関（唐戸）の港へ船を着けよ', 'Bring the ship into Karato harbor, Shimonoseki')); Sfx.bell(); this.goalBeam.visible = true; Sfx.bgm('battle'); }
+      if (left === 0 && !G.finalCleared) { G.finalCleared = true; banner(L('平家の怨霊、鎮まる', 'The Heike ghosts are laid to rest'), L('巌流島へ船を着けよ', 'Bring the ship to Ganryūjima')); Sfx.bell(); this.goalBeam.visible = true; Sfx.bgm('battle'); }
       const dg = Math.hypot(P.x - this.goal.x, P.z - this.goal.z);
       if (dg < 70) {
         if (G.finalCleared) { G.onGoal(); }

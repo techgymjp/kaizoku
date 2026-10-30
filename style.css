@@ -300,3 +300,11 @@ body.touch #minimap { width: min(44vw, 300px); height: min(31.4vw, 214px); left:
 }
 @media (max-height: 500px) { #harborNav { top: 6px; } #navName { font-size: 13px; } }
 .mon { border-color: #c8c8c8; background-color: #f4f2ea; }
+/* 右上：進み具合のバーと、その下に島ナビ */
+.hud-right .route { width: min(320px, 56vw); height: 22px; border-radius: 11px; margin: 0 0 8px auto; border: 2px solid rgba(255,255,255,.6); background: rgba(0,0,0,.6); }
+.hud-right .route span { font-size: 13px; line-height: 18px; font-weight: 700; }
+.hud-right #harborNav { position: static; transform: none; margin: 0 0 8px auto; width: max-content; max-width: min(360px, 62vw); pointer-events: none; }
+@media (max-width: 600px) { .hud-right #harborNav { position: static; bottom: auto; left: auto; } }
+.hud-right #harborNav { text-align: left; }
+@media (max-width: 600px) { #msgs { top: 240px; width: calc(100% - 20px); } }
+@media (max-width: 600px) { .hud-left { width: 38vw; } }

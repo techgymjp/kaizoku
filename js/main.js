@@ -330,7 +330,7 @@ function updateHUD(dt) {
     const nn = nh.goal ? L('★ 巌流島（決戦）', '★ Ganryūjima (final battle)') : L(`⚓ ${islandName(nh.isl)}の港`, `⚓ Port of ${islandName(nh.isl)}`);
     if ($('navName').textContent !== nn) $('navName').textContent = nn;
     const km = nh.d * 10;
-    $('navInfo').textContent = (km >= 1000 ? `${(km / 1000).toFixed(1)}km` : `${Math.round(km)}m`) + (nh.goal ? (G.finalCleared ? L('　ゴール', ' · goal') : L('　平家の船団を全て沈めよ', ' · sink the whole Heike fleet')) : L('　西の島・財宝あり', ' · next island west · treasure'));
+    $('navInfo').textContent = (km >= 1000 ? `${(km / 1000).toFixed(1)}km` : `${Math.round(km)}m`) + (nh.goal ? (G.finalCleared ? L('　ゴール', ' · goal') : L(`　決戦 残り ${G.finalLeft ?? '?'} 艘`, ` · final battle: ${G.finalLeft ?? '?'} ships left`)) : L('　西の島・財宝あり', ' · next island west · treasure'));
   }
   const fr = mode === 'sea' && sea && sea.front && !sea.front.e.sink ? sea.front : null;
   const tg = $('target');

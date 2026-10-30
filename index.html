@@ -30,19 +30,16 @@
     <div id="seaHelp" class="help"></div>
   </div>
   <div class="hud-right">
-    <div><span data-en="Gold">財宝</span> <b id="hGold">0</b><small data-en=" ryo"> 両</small></div>
-    <div><span data-en="Islands raided">奪った島</span> <b id="hIsl">0</b></div>
-    <div><span data-en="Ships sunk">撃沈</span> <b id="hSunk">0</b></div>
-    <div><span data-en="Foes slain">斬った敵</span> <b id="hKill">0</b></div>
-    <div class="esc"><span data-en="Ships hunting you">追ってくる船</span> <b id="hEsc">0</b></div>
-    <div id="hPlace" class="place"></div>
-    <div id="hTide" class="tide"></div>
-    <div id="hWind" class="wind"></div>
     <div class="route"><div id="routebar"></div><span data-en="Himeji → Ganryūjima">姫路 → 巌流島</span></div>
+    <div id="harborNav" class="pill hidden"><div id="navArrow">➤</div><div><div id="navName">-</div><div id="navInfo">-</div></div></div>
     <div class="hud-btns"><button id="btnView" class="mini-btn hidden" data-en="👁">視</button> <button id="btnPause" class="mini-btn" data-en="II">止</button></div>
+    <!-- 数字の表示は読みにくいので出さない（結果画面で見せる） -->
+    <div class="stats-hidden" hidden>
+      <b id="hGold">0</b><b id="hIsl">0</b><b id="hSunk">0</b><b id="hKill">0</b><b id="hEsc">0</b>
+      <div id="hPlace"></div><div id="hTide"></div><div id="hWind"></div>
+    </div>
   </div>
   <canvas id="minimap" width="420" height="300"></canvas>
-  <div id="harborNav" class="pill hidden"><div id="navArrow">➤</div><div><div id="navName">-</div><div id="navInfo">-</div></div></div>
   <div id="landPrompt" class="hidden"></div>
   <div id="target" class="hidden"></div>
   <div id="crosshair" class="hidden"><i></i><i></i><i></i><i></i><b></b></div>

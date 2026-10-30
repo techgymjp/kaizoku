@@ -82,10 +82,11 @@ export class Sea {
     S.add(this.ship);
     {
       const ud = this.ship.userData;
-      const hero = makeWarrior('hero'); hero.position.set(0, ud.deckY + 2.4, -ud.len * 0.36); hero.scale.setScalar(1.15); ud.inner.add(hero); this.hero = hero;
+      // 赤備えの船長は甲板の真ん中、後ろから見える所に立つ
+      const hero = makeWarrior('hero'); hero.position.set(0, ud.deckY + 0.1, -ud.len * 0.14); hero.scale.setScalar(2.0); ud.inner.add(hero); this.hero = hero;
       ud.spots.slice(2, 8).forEach(([x, z, y = 0], i) => { const c = makeCrewman('spear', 'west', '#b0141a'); c.position.set(x, ud.deckY + y, z); ud.inner.add(c); });
-      // 船首楼に鉄砲隊 4 人（船の向きに構える）
-      this.gunners = [[-0.28, 0.3], [-0.1, 0.38], [0.1, 0.38], [0.28, 0.3]].map(([x, z]) => {
+      // その前、船首楼に鉄砲隊 5 人が横一列に並ぶ（船の向きに構える）
+      this.gunners = [[-0.32, 0.31], [-0.16, 0.34], [0, 0.36], [0.16, 0.34], [0.32, 0.31]].map(([x, z]) => {
         const c = makeCrewman('gun', 'west', '#b0141a');
         c.position.set(x * ud.width, ud.deckY + 1.4, z * ud.len); c.scale.setScalar(1.25);
         ud.inner.add(c);
@@ -936,16 +937,16 @@ export class Sea {
       return;
     }
     if (this.gunners) {
-      this.gunners.forEach((g, i) => setTimeout(() => {
-        if (this.G.state !== 'play') return;
+      // 5 丁一斉に撃つ
+      Sfx.gun(0.7); Sfx.cannon(0.25);
+      this.gunners.forEach((g, i) => {
         const mz = g.mz.getWorldPosition(new THREE.Vector3());
         const ta = Math.atan2(aim.z - mz.z, aim.x - mz.x) + rand(-0.025, 0.025);
         const sp = 150;
         const b = this.addBullet(mz.x, mz.y, mz.z, Math.cos(ta) * sp, 0.8, Math.sin(ta) * sp, 'p', 14, 2.3);
         b.g = 1.2;
         this.muzzleFire(mz, ta);
-        if (i % 2 === 0) Sfx.gun(0.45);
-      }, i * 55));
+      });
       return;
     }
     for (let i = 0; i < 4; i++) {

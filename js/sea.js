@@ -1417,6 +1417,7 @@ export class Sea {
   updateLandPrompt() {
     const el = $('landPrompt');
     const c = this.canLand;
+    el.classList.add("hidden"); return; // 上陸の案内は出さない（港に入れば自動で上陸）
     if (!c) { el.classList.add('hidden'); return; }
     el.classList.remove('hidden');
     if (!c.isl) { el.innerHTML = `<span class="dim">${c.why}</span>`; return; }

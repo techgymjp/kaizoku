@@ -1,0 +1,326 @@
+// 瀬戸内の海賊王 — 起動・入力・場面の切り替え・HUD
+import * as THREE from './vendor/three.module.min.js';
+import { loadDEM, DEM } from './geo.js';
+import { Sea } from './sea.js';
+import { Island } from './island.js';
+import { Sfx } from './audio.js';
+import { $, msg, banner } from './ui.js';
+import { L, setLang, getLang, applyHTML, islandName } from './i18n.js';
+import { STORY, STORY_EN, zoneAt } from './data.js';
+
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+
+// ---------------- 描画 ----------------
+const canvas = $('game');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+// ---------------- 入力 ----------------
+const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+if (isTouch) document.body.classList.add('touch');
+const keys = new Set(), hits = new Set();
+const I = {
+  mx: 0, my: 0, mouseAim: false, joy: null, tDash: false, wheel: 0,
+  fire: false, bomb: false, sword: false, spear: false, land: false,
+  down: (c) => keys.has(c), pressed: (c) => hits.has(c),
+};
+function primary() { if (mode === 'sea') I.fire = true; else I.sword = true; }
+function secondary() { if (mode === 'sea') I.bomb = true; else I.spear = true; }
+addEventListener('keydown', (e) => {
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+  Sfx.init();
+  if (!e.repeat) hits.add(e.code);
+  keys.add(e.code);
+  if (G && G.state === 'play' && !e.repeat) {
+    if (e.code === 'KeyJ' || e.code === 'KeyZ') { primary(); I.mouseAim = false; }
+    if (e.code === 'KeyK' || e.code === 'KeyX') { secondary(); I.mouseAim = false; }
+    if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
+  } else if (G && G.state === 'pause' && (e.code === 'KeyP' || e.code === 'Escape')) togglePause();
+});
+addEventListener('keyup', (e) => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());
+canvas.addEventListener('mousemove', (e) => { I.mx = e.clientX; I.my = e.clientY; if (Math.abs(e.movementX) + Math.abs(e.movementY) > 2) I.mouseAim = true; });
+canvas.addEventListener('mousedown', (e) => {
+  Sfx.init();
+  I.mx = e.clientX; I.my = e.clientY; I.mouseAim = true;
+  if (G && G.state === 'play') { if (e.button === 0) primary(); if (e.button === 2) secondary(); }
+});
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+canvas.addEventListener('wheel', (e) => { I.wheel += e.deltaY; e.preventDefault(); }, { passive: false });
+(function setupTouch() {
+  const zone = $('joyzone'), base = $('joybase'), knob = $('joyknob');
+  let id = null, ox = 0, oy = 0;
+  zone.addEventListener('touchstart', (e) => {
+    Sfx.init();
+    const t = e.changedTouches[0]; id = t.identifier; ox = t.clientX; oy = t.clientY;
+    base.style.left = ox + 'px'; base.style.top = oy + 'px'; base.classList.add('on');
+    knob.style.transform = 'translate(-50%,-50%)'; I.joy = { x: 0, y: 0 }; e.preventDefault();
+  }, { passive: false });
+  zone.addEventListener('touchmove', (e) => {
+    for (const t of e.changedTouches) if (t.identifier === id) {
+      let dx = t.clientX - ox, dy = t.clientY - oy; const d = Math.hypot(dx, dy), m = 55;
+      if (d > m) { dx *= m / d; dy *= m / d; }
+      knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+      I.joy = { x: dx / m, y: dy / m };
+    }
+    e.preventDefault();
+  }, { passive: false });
+  const end = (e) => { for (const t of e.changedTouches) if (t.identifier === id) { id = null; I.joy = null; base.classList.remove('on'); } };
+  zone.addEventListener('touchend', end); zone.addEventListener('touchcancel', end);
+  const bind = (el, down, up) => {
+    el.addEventListener('touchstart', (e) => { Sfx.init(); el.classList.add('press'); down(); e.preventDefault(); }, { passive: false });
+    el.addEventListener('touchend', (e) => { el.classList.remove('press'); up && up(); e.preventDefault(); }, { passive: false });
+    el.addEventListener('touchcancel', () => { el.classList.remove('press'); up && up(); });
+  };
+  bind($('btnSword'), () => { primary(); I.mouseAim = false; });
+  bind($('btnSpear'), () => { secondary(); I.mouseAim = false; });
+  bind($('btnDash'), () => { I.tDash = true; }, () => { I.tDash = false; });
+  bind($('btnLand'), () => { I.land = true; });
+})();
+
+// ---------------- 状態 ----------------
+let G = null, sea = null, island = null, mode = 'title', islands = [];
+function newGame() {
+  G = {
+    state: 'play', t: 0, hp: 300, maxHp: 300, hull: 300, maxHull: 300, st: 100, maxSt: 100, stDelay: 0, lastHurt: -10,
+    gold: 0, taken: new Set(), sunk: 0, kills: 0, bosses: 0, progress: 0, final: false, finalCleared: false, minX: 0,
+    islands, raided: [],
+    land, board, die, onGoal,
+  };
+  return G;
+}
+
+async function boot() {
+  applyHTML();
+  setLoad(L('瀬戸内海の地形を読み込んでいます……', 'Loading the Seto Inland Sea…'));
+  await loadDEM();
+  islands = await (await fetch('data/islands.json')).json();
+  setLoad(L('海と島々を描いています……', 'Drawing the sea and islands…'));
+  await new Promise((r) => setTimeout(r, 30));
+  startSea();
+  $('loading').classList.add('hidden');
+  showTitle();
+  requestAnimationFrame(loop);
+}
+function setLoad(t) { $('loadtext').textContent = t; }
+
+function startSea() {
+  if (sea) { sea.scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
+  newGame();
+  sea = new Sea(renderer, G);
+  sea.build();
+  sea.updateChunks(true);
+  mode = 'sea';
+}
+
+function showTitle() {
+  mode = 'title';
+  G.state = 'title';
+  $('title').classList.remove('hidden');
+  $('hud').classList.add('hidden');
+  $('result').classList.add('hidden');
+  $('pause').classList.add('hidden');
+  renderStory();
+  Sfx.bgm('title');
+}
+function renderStory() {
+  const lines = getLang() === 'en' ? STORY_EN : STORY;
+  $('story').innerHTML = lines.map((l) => `<p>${l}</p>`).join('');
+  $('btnMute').textContent = Sfx.muted ? L('音：切', 'Sound: off') : L('音：入', 'Sound: on');
+}
+for (const b of document.querySelectorAll('.lang-btn')) b.addEventListener('click', () => { setLang(b.dataset.lang); renderStory(); updateHelp(); });
+$('btnMute').addEventListener('click', () => { Sfx.init(); Sfx.toggle(); renderStory(); });
+$('btnStart').addEventListener('click', () => { Sfx.init(); start(); });
+$('btnRetry').addEventListener('click', () => { Sfx.init(); restart(); });
+$('btnTitle').addEventListener('click', () => { restart(true); });
+$('btnPause').addEventListener('click', () => togglePause());
+$('btnResume').addEventListener('click', () => togglePause());
+$('btnQuit').addEventListener('click', () => { $('pause').classList.add('hidden'); restart(true); });
+
+function start() {
+  $('title').classList.add('hidden');
+  $('hud').classList.remove('hidden');
+  G.state = 'play';
+  mode = 'sea';
+  sea.camInit = false;
+  Sfx.bgm('sea');
+  Sfx.horn(0.4);
+  banner(L('大坂湾より出航', 'Setting sail from Osaka Bay'), L('西へ——目指すは下関', 'Head west — for Shimonoseki'));
+  msg(L('帆を張れ！ 西へ進み、島で財宝を奪え。', 'Raise the sail! Sail west and plunder the islands.'), 'sys', 5);
+  setTimeout(() => msg(L('黄色い点の島には財宝がある。岸に寄せて E で上陸。', 'Islands marked gold hold treasure. Pull up to the shore and press E to land.'), 'sys', 6), 4000);
+  updateHelp();
+}
+function restart(toTitle) {
+  if (island) { island.dispose(); island = null; }
+  $('result').classList.add('hidden');
+  $('msgs').innerHTML = '';
+  setLoad(L('新しい船を用意しています……', 'Preparing a new ship…'));
+  $('loading').classList.remove('hidden');
+  setTimeout(() => {
+    startSea();
+    $('loading').classList.add('hidden');
+    if (toTitle) showTitle(); else start();
+  }, 30);
+}
+function togglePause() {
+  if (!G) return;
+  if (G.state === 'play') { G.state = 'pause'; $('pause').classList.remove('hidden'); }
+  else if (G.state === 'pause') { G.state = 'play'; $('pause').classList.add('hidden'); }
+}
+
+// ---- 上陸と乗船 ----
+async function land(c) {
+  if (G.state !== 'play') return;
+  G.state = 'loading';
+  const name = islandName(c.isl);
+  setLoad(L(`${name}に上陸します……`, `Landing on ${name}…`));
+  $('loading').classList.remove('hidden');
+  $('landPrompt').classList.add('hidden');
+  G.zoneColor = zoneAt(G.lon || 135).faction.color;
+  try {
+    island = new Island(renderer, G);
+    await island.load(c, (t) => setLoad(t));
+    mode = 'island';
+    sea.tags.clear(); sea.floats.clear();
+    Sfx.bgm(G.final ? 'final' : 'island');
+    Sfx.horn(0.3, 0, 1.05, [0.5, 0.5, 1.2]);
+  } catch (e) {
+    console.error(e);
+    island = null;
+    msg(L('上陸できなかった……', 'Could not land…'), 'warn', 4);
+  }
+  $('loading').classList.add('hidden');
+  G.state = 'play';
+  updateHelp();
+}
+function board() {
+  if (!island) return;
+  const raided = island.treasure.taken;
+  if (raided && !G.raided.includes(island.isl.id)) G.raided.push(island.isl.id);
+  island.dispose(); island = null;
+  mode = 'sea';
+  sea.resume();
+  G.hull = Math.min(G.maxHull, G.hull + 40); // 港で少し修理
+  msg(L('船に戻った。港で船体を少し直した。', 'Back aboard. The hull was patched up in port.'), 'sys', 4);
+  Sfx.bgm(G.final ? 'final' : 'sea');
+  updateHelp();
+}
+function die(reason) {
+  if (G.state !== 'play') return;
+  G.state = 'dying'; G.endT = 0; G.deathPlace = reason;
+  Sfx.dirge();
+  banner(L('無念……', 'Defeated…'), reason);
+}
+function onGoal() {
+  if (G.state !== 'play') return;
+  G.state = 'clearing'; G.endT = 0;
+  Sfx.bgm('clear'); Sfx.fanfare(); Sfx.bell();
+  banner(L('下関に着いた！', 'You reached Shimonoseki!'), L('瀬戸内の海賊王、ここに誕生', 'The Pirate King of the Seto Inland Sea is born'));
+}
+
+// ---------------- 結果 ----------------
+function rank(clear) {
+  const g = G.gold;
+  if (clear) return g >= 6000 ? L('真の瀬戸内の海賊王', 'True Pirate King of the Seto Sea') : L('瀬戸内の海賊王', 'Pirate King of the Seto Sea');
+  if (g < 300) return L('船酔いの小悪党', 'Seasick Rascal');
+  if (g < 1200) return L('海賊見習い', 'Apprentice Pirate');
+  if (g < 3000) return L('島荒らし', 'Island Raider');
+  if (g < 6000) return L('瀬戸内の大海賊', 'Great Pirate of the Inland Sea');
+  return L('海賊王になりそこねた男', 'The Man Who Almost Became King');
+}
+function showResult(clear) {
+  G.state = 'result';
+  $('hud').classList.add('hidden');
+  $('result').classList.remove('hidden');
+  const h = $('rHead');
+  h.textContent = clear ? L('海賊王', 'PIRATE KING') : L('無　念', 'DEFEATED');
+  h.classList.toggle('clear', clear);
+  $('rPlace').textContent = clear ? L('壇ノ浦の怨霊を鎮め、下関に至る', 'Laid the Heike ghosts of Dan-no-ura to rest and reached Shimonoseki') : G.deathPlace || '';
+  $('rTitle').textContent = L('称号：', 'Title: ') + rank(clear);
+  $('rGold').textContent = G.gold.toLocaleString() + L(' 両', ' ryō');
+  $('rIsl').textContent = `${G.taken.size} / ${islands.length}`;
+  $('rSunk').textContent = G.sunk;
+  $('rKill').textContent = G.kills + G.bosses;
+  $('rProg').textContent = Math.round(G.progress * 100) + '%';
+  const s = Math.floor(G.t);
+  $('rTime').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const list = $('rList'); list.innerHTML = '';
+  for (const id of G.taken) { const isl = islands.find((i) => i.id === id); if (!isl) continue; const c = document.createElement('span'); c.className = 'chip on'; c.textContent = islandName(isl); list.appendChild(c); }
+  Sfx.crowd(0);
+}
+function shareText() {
+  const clear = $('rHead').classList.contains('clear');
+  return L(`【瀬戸内の海賊王】${rank(clear)}——財宝 ${G.gold.toLocaleString()} 両、${G.taken.size} 島を荒らし、${G.sunk} 艘を沈めた。`, `[Pirate King of the Seto Inland Sea] ${rank(clear)} — ${G.gold.toLocaleString()} ryō of treasure, ${G.taken.size} islands raided, ${G.sunk} ships sunk.`);
+}
+$('shareX').addEventListener('click', () => open('https://x.com/intent/post?text=' + encodeURIComponent(shareText()) + '&url=' + encodeURIComponent(location.href.split('#')[0]), '_blank', 'noopener'));
+$('shareLine').addEventListener('click', () => open('https://social-plugins.line.me/lineit/share?url=' + encodeURIComponent(location.href.split('#')[0]) + '&text=' + encodeURIComponent(shareText()), '_blank', 'noopener'));
+
+// ---------------- HUD ----------------
+function updateHelp() {
+  const sea = mode === 'sea';
+  $('seaHelp').innerHTML = sea
+    ? L('<kbd>W</kbd><kbd>S</kbd>帆 <kbd>A</kbd><kbd>D</kbd>舵 <kbd>J</kbd>鉄砲 <kbd>K</kbd>焙烙玉 <kbd>Space</kbd>漕ぐ <kbd>E</kbd>上陸', '<kbd>W</kbd><kbd>S</kbd> sail <kbd>A</kbd><kbd>D</kbd> steer <kbd>J</kbd> guns <kbd>K</kbd> bomb <kbd>Space</kbd> row <kbd>E</kbd> land')
+    : L('<kbd>WASD</kbd>移動 <kbd>J</kbd>刀 <kbd>K</kbd>槍 <kbd>Space</kbd>駆 <kbd>Q</kbd><kbd>E</kbd>視点 <kbd>E</kbd>乗船', '<kbd>WASD</kbd> move <kbd>J</kbd> sword <kbd>K</kbd> spear <kbd>Space</kbd> dash <kbd>Q</kbd><kbd>E</kbd> camera <kbd>E</kbd> board');
+  const lab = sea ? [L('鉄砲', 'Guns'), L('焙烙', 'Bomb'), L('漕', 'Row'), L('上陸', 'Land')] : [L('刀', 'Sword'), L('槍', 'Spear'), L('駆', 'Dash'), L('乗船', 'Board')];
+  ['btnSword', 'btnSpear', 'btnDash', 'btnLand'].forEach((id, i) => { $(id).textContent = lab[i]; delete $(id).dataset.en; });
+}
+let hudT = 0;
+function updateHUD(dt) {
+  hudT -= dt; if (hudT > 0) return; hudT = 0.1;
+  $('hpbar').style.width = (G.hp / G.maxHp) * 100 + '%'; $('hpnum').textContent = Math.ceil(G.hp);
+  $('hullbar').style.width = (G.hull / G.maxHull) * 100 + '%'; $('hullnum').textContent = Math.ceil(G.hull);
+  $('stbar').style.width = (G.st / G.maxSt) * 100 + '%'; $('stbar').classList.toggle('low', G.st < 15);
+  $('hGold').textContent = G.gold.toLocaleString();
+  $('hIsl').textContent = `${G.taken.size}/${islands.length}`;
+  $('hSunk').textContent = G.sunk; $('hKill').textContent = G.kills + G.bosses;
+  let place = '';
+  if (mode === 'island' && island) place = islandName(island.isl);
+  else if (sea && sea.zone) place = zoneName(sea.zone);
+  if (G.final && !G.finalCleared) place = L(`壇ノ浦　残り ${G.finalLeft ?? '?'} 艘`, `Dan-no-ura: ${G.finalLeft ?? '?'} ships left`);
+  $('hPlace').textContent = place;
+}
+const ZONE_EN = { 大阪湾: 'Osaka Bay', 播磨灘: 'Harima Sea', 備讃瀬戸: 'Bisan Strait', 備後灘: 'Bingo Sea', 芸予諸島: 'Geiyo Islands', '安芸灘・広島湾': 'Aki Sea & Hiroshima Bay', '伊予灘・周防灘': 'Iyo & Suō Seas', 関門海峡: 'Kanmon Strait' };
+export function zoneName(z) { return getLang() === 'en' ? ZONE_EN[z.name] || z.name : z.name; }
+
+// ---------------- ループ ----------------
+let last = performance.now();
+function loop(now) {
+  requestAnimationFrame(loop);
+  let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (!G) return;
+  if (mode === 'title') {
+    // タイトルの背景：大阪湾をゆっくり巡る
+    const P = sea.P; const t = now / 1000;
+    sea.camera.position.set(P.x + Math.cos(t * 0.05) * 120, 40, P.z + Math.sin(t * 0.05) * 120);
+    sea.camera.lookAt(P.x, 0, P.z);
+    sea.updateSky(0, false);
+    sea.waterU.time.value = t;
+    sea.water.position.set(Math.round(sea.camera.position.x / 50) * 50, 0, Math.round(sea.camera.position.z / 50) * 50);
+    sea.sky.position.copy(sea.camera.position);
+    sea.ship.position.y = 0.25 + Math.sin(t * 1.3) * 0.12;
+    renderer.render(sea.scene, sea.camera);
+    hits.clear();
+    return;
+  }
+  if (G.state === 'play' || G.state === 'dying' || G.state === 'clearing') {
+    if (G.state !== 'play') {
+      G.endT += dt; dt *= 0.35;
+      if (G.endT > 2.6) showResult(G.state === 'clearing');
+    }
+    G.t += dt;
+    if (mode === 'sea') sea.update(dt, I); else if (island) island.update(dt, I);
+    updateHUD(dt);
+  }
+  if (mode === 'sea') sea.render(dt); else if (island) island.render(dt);
+  hits.clear();
+}
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  if (sea) sea.resize(); if (island) island.resize();
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) { if (G && G.state === 'play') togglePause(); Sfx.suspend(); } else Sfx.resume(); });
+
+window.__kz = { get G() { return G; }, get sea() { return sea; }, get island() { return island; }, I };
+boot().catch((e) => { console.error(e); setLoad('読み込みに失敗しました / Failed to load: ' + e.message); });

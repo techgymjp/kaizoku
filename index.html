@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>瀬戸内の海賊王</title>
+<meta name="description" content="小早川秀秋、海賊となる。大阪湾から壇ノ浦へ——瀬戸内海の有人島を 3D で再現した海賊アクション。">
+<meta property="og:title" content="瀬戸内の海賊王">
+<meta property="og:description" content="大阪湾から下関へ。島に上陸して財宝を奪い、海賊船を沈め、壇ノ浦で平家の怨霊を討て。">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#10202a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Yuji+Syuku&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="flash"></div>
+<div id="tags"></div>
+<div id="floats"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-left">
+    <div class="pname"><span class="mon">鎌</span><span data-en="Kobayakawa Hideaki <small>Pirate</small>">小早川秀秋 <small>海賊船「違い鎌」</small></span></div>
+    <div class="bar"><div id="hpbar" class="fill hp"></div><span class="lbl"><span data-en="HP">体力</span> <b id="hpnum">300</b></span></div>
+    <div class="bar"><div id="hullbar" class="fill hull"></div><span class="lbl"><span data-en="Hull">船体</span> <b id="hullnum">300</b></span></div>
+    <div class="bar sm"><div id="stbar" class="fill st"></div><span class="lbl" data-en="Dash">駆</span></div>
+    <div id="seaHelp" class="help"></div>
+  </div>
+  <div class="hud-right">
+    <div><span data-en="Gold">財宝</span> <b id="hGold">0</b><small data-en=" ryo"> 両</small></div>
+    <div><span data-en="Islands raided">奪った島</span> <b id="hIsl">0</b></div>
+    <div><span data-en="Ships sunk">撃沈</span> <b id="hSunk">0</b></div>
+    <div><span data-en="Foes slain">斬った敵</span> <b id="hKill">0</b></div>
+    <div id="hPlace" class="place"></div>
+    <div class="route"><div id="routebar"></div><span data-en="Osaka → Shimonoseki">大坂 → 下関</span></div>
+    <div class="hud-btns"><button id="btnPause" class="mini-btn" data-en="II">止</button></div>
+  </div>
+  <canvas id="minimap" width="300" height="200"></canvas>
+  <div id="landPrompt" class="hidden"></div>
+  <div id="joyzone"></div>
+  <div id="joybase"><div id="joyknob"></div></div>
+  <div id="tbtns">
+    <button id="btnSpear" class="tbtn spear" data-en="Spear">槍</button>
+    <button id="btnSword" class="tbtn sword" data-en="Sword">刀</button>
+    <button id="btnDash" class="tbtn dash" data-en="Dash">駆</button>
+    <button id="btnLand" class="tbtn land" data-en="Land">上陸</button>
+  </div>
+</div>
+<div id="msgs"></div>
+<div id="banner"></div>
+
+<!-- 読み込み -->
+<div id="loading" class="screen">
+  <div class="load-inner"><div class="spinner"></div><div id="loadtext">読み込み中……</div></div>
+</div>
+
+<!-- タイトル -->
+<div id="title" class="screen hidden">
+  <div class="title-inner">
+    <div class="pre" data-en="Keichō 7 (1602) — from Osaka Bay to Dan-no-ura">慶長七年　大坂湾より壇ノ浦へ</div>
+    <h1>瀬戸内の<br class="br-sp">海賊王</h1>
+    <div class="title-sub" data-en="PIRATE KING OF THE SETO INLAND SEA"></div>
+    <div id="story" class="story"></div>
+    <button id="btnStart" class="btn primary" data-en="Set sail">出　航</button>
+    <div class="lang-sel"><button class="lang-btn" data-lang="ja">日本語</button><button class="lang-btn" data-lang="en">English</button></div>
+    <div class="controls">
+      <div class="pc">
+        <div class="ctl-h" data-en="At sea">海</div>
+        <div data-en="&lt;kbd&gt;W&lt;/kbd&gt;&lt;kbd&gt;S&lt;/kbd&gt; sails up/down　&lt;kbd&gt;A&lt;/kbd&gt;&lt;kbd&gt;D&lt;/kbd&gt; steer　&lt;kbd&gt;Space&lt;/kbd&gt; row hard (dash)"><kbd>W</kbd><kbd>S</kbd> 帆を上げる・下げる　<kbd>A</kbd><kbd>D</kbd> 舵　<kbd>Space</kbd> 漕ぎ（駆）</div>
+        <div data-en="&lt;kbd&gt;J&lt;/kbd&gt; / Left click: matchlock volley　&lt;kbd&gt;K&lt;/kbd&gt; / Right click: fire bomb (uses dash)　&lt;kbd&gt;E&lt;/kbd&gt; land"><kbd>J</kbd> / 左クリック：鉄砲の一斉射撃　<kbd>K</kbd> / 右クリック：焙烙玉（駆を使う）　<kbd>E</kbd> 上陸</div>
+        <div class="ctl-h" data-en="On islands (Kobayakawa style)">島（小早川の戦い方）</div>
+        <div data-en="&lt;kbd&gt;WASD&lt;/kbd&gt; move　&lt;kbd&gt;J&lt;/kbd&gt; sword (3rd hit spins, deflects bullets)　&lt;kbd&gt;K&lt;/kbd&gt; spear (pierces 2)　&lt;kbd&gt;Space&lt;/kbd&gt; dash　Rice balls heal"><kbd>WASD</kbd> 移動　<kbd>J</kbd> 刀（3連で回転斬り・弾を弾く）　<kbd>K</kbd> 槍（2人まで貫く）　<kbd>Space</kbd> 駆　おむすびで回復</div>
+        <div data-en="&lt;kbd&gt;Q&lt;/kbd&gt;&lt;kbd&gt;E&lt;/kbd&gt; turn camera　Wheel: zoom　&lt;kbd&gt;P&lt;/kbd&gt; pause"><kbd>Q</kbd><kbd>E</kbd> カメラを回す　ホイール：寄る・引く　<kbd>P</kbd> 一時停止</div>
+      </div>
+      <div class="sp" data-en="Left side: steer / move ・ Right buttons: attack ・ hold Dash">左側をなぞって舵・移動／右のボタンで攻撃／「駆」長押しでダッシュ</div>
+    </div>
+    <button id="btnMute" class="btn ghost small">音：入</button>
+    <div class="legal">
+      <span data-en="Terrain, aerial photos and buildings: processed from GSI Tiles (Geospatial Information Authority of Japan)">地形・空中写真・建物：国土地理院「地理院タイル」を加工して作成</span><br>
+      <span data-en="Battle system, sound and character: based on “Kobayakawa: Lone Samurai” (TECH GYM)">戦い方・効果音・主人公：「孤軍奮闘小早川」（テックジム）より</span>
+    </div>
+  </div>
+</div>
+
+<!-- 一時停止 -->
+<div id="pause" class="screen hidden">
+  <div class="panel">
+    <h2 data-en="Paused">船中休息</h2>
+    <button id="btnResume" class="btn primary" data-en="Resume">再び出る</button>
+    <button id="btnQuit" class="btn ghost" data-en="Back to title">タイトルへ</button>
+  </div>
+</div>
+
+<!-- 結果 -->
+<div id="result" class="screen hidden">
+  <div class="panel result">
+    <div class="r-pre" data-en="Pirate King of the Seto Inland Sea — Results">瀬戸内の海賊王　戦果</div>
+    <h2 id="rHead">討　死</h2>
+    <div id="rPlace" class="r-place"></div>
+    <div id="rTitle" class="r-title"></div>
+    <table class="r-stats">
+      <tr><th data-en="Gold">財宝</th><td id="rGold"></td></tr>
+      <tr><th data-en="Islands raided">奪った島</th><td id="rIsl"></td></tr>
+      <tr><th data-en="Ships sunk">撃沈した船</th><td id="rSunk"></td></tr>
+      <tr><th data-en="Foes slain">斬った敵</th><td id="rKill"></td></tr>
+      <tr><th data-en="Voyage">航海</th><td id="rProg"></td></tr>
+      <tr><th data-en="Time">時間</th><td id="rTime"></td></tr>
+    </table>
+    <div id="rList" class="r-list"></div>
+    <div class="share">
+      <button id="shareX" class="btn share-x" data-en="Share on 𝕏">𝕏 でシェア</button>
+      <button id="shareLine" class="btn share-line" data-en="LINE">LINEで送る</button>
+    </div>
+    <div class="r-btns">
+      <button id="btnRetry" class="btn primary" data-en="Sail again">再び出航</button>
+      <button id="btnTitle" class="btn ghost" data-en="Title">タイトルへ</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

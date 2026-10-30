@@ -1,0 +1,927 @@
+// 海モード：瀬戸内海を海賊船で西へ。敵の海賊船を鉄砲で撃ち、島に上陸する
+import * as THREE from './vendor/three.module.min.js';
+import { DEM, SEA_K, VEX, hPx, hSea, ll2sea, sea2ll, ll2px, isLandPx, compAt, nearestLandPx } from './geo.js';
+import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, FINAL_LON, DANNOURA } from './data.js';
+import { makeShip, animateShip, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
+import { Sfx } from './audio.js';
+import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
+import { L, islandName } from './i18n.js';
+const N = (o) => L(o.name, o.en || o.name);
+
+const TAU = Math.PI * 2;
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
+const SHIP_SCALE = 0.34;
+const BACK = 900; // 東へ戻れる距離（単位。1 単位 = 10m）
+const CH = 64; // 地形のかたまり（画素）
+
+// ---- 地形の色 ----
+function hash(x, y) { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function vnoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const a = hash(ix, iy), b = hash(ix + 1, iy), c = hash(ix, iy + 1), d = hash(ix + 1, iy + 1);
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+const C = (h) => new THREE.Color(h);
+const COL = { sand: C('#d8c89a'), sand2: C('#c8b480'), field: C('#9aa860'), field2: C('#b8a868'), paddy: C('#7a9a58'), forest: C('#3c5a34'), forest2: C('#2e4a2c'), rock: C('#8a8270'), town: C('#a49c8e'), floor: C('#3a5a5a'), orange: C('#6a8a3a') };
+function landColor(out, h, slope, px, py, seaNear) {
+  const n = vnoise(px * 0.35, py * 0.35), n2 = vnoise(px * 1.3 + 50, py * 1.3);
+  if (h <= 0) { out.copy(COL.floor); return; }
+  if (h < 4 && seaNear) { out.copy(COL.sand).lerp(COL.sand2, n2); return; }
+  if (slope < 0.06 && h < 40) {
+    // 平地：田畑と町
+    if (n2 > 0.72 && seaNear) out.copy(COL.town).lerp(COL.sand2, n * 0.3);
+    else out.copy(COL.field).lerp(n > 0.5 ? COL.field2 : COL.paddy, Math.abs(n - 0.5) * 2);
+    return;
+  }
+  if (slope > 0.55 || h > 900) { out.copy(COL.rock).lerp(COL.forest2, 0.3 * n); return; }
+  // 段々畑（みかん）と森
+  if (h < 160 && slope < 0.25 && n2 > 0.55) { out.copy(COL.orange).lerp(COL.forest, n * 0.5); return; }
+  out.copy(COL.forest).lerp(COL.forest2, n);
+}
+
+export class Sea {
+  constructor(renderer, G) {
+    this.r = renderer; this.G = G;
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 14000);
+    this.floats = new Floats(); this.tags = new Tags();
+    this.chunks = new Map();
+    this.enemies = []; this.bullets = []; this.parts = []; this.loot = []; this.wakes = [];
+    this.t = 0; this.spawnT = 3; this.camYaw = 0; this.camDist = 36; this.camH = 13;
+    this.colliders = [];
+  }
+
+  // ---------------- 準備 ----------------
+  build() {
+    const S = this.scene;
+    this.fog = new THREE.Fog('#c8d8e0', 1500, 9000);
+    S.fog = this.fog;
+    this.sun = new THREE.DirectionalLight('#fff4e0', 2.2);
+    this.sun.position.set(-0.4, 0.8, 0.45);
+    S.add(this.sun);
+    this.hemi = new THREE.HemisphereLight('#cfe4ff', '#5a5a3a', 1.1);
+    S.add(this.hemi);
+    this.buildSky();
+    this.buildWater();
+    this.chunkMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    this.scanChunks();
+    this.buildBridges();
+    this.buildLandmarks();
+    this.buildWhirlpools();
+    this.buildMinimap();
+    // 自分の船
+    this.ship = makeShip('player');
+    this.ship.scale.setScalar(SHIP_SCALE);
+    S.add(this.ship);
+    const [sx, sz] = ll2sea(START.lon, START.lat);
+    this.P = { x: sx, z: sz, h: START.heading, v: 0, sail: 2, roll: 0, pitch: 0, cd: 0, cdBomb: 0, inv: 0 };
+    this.G.minX = sx;
+    // 戻れない線（霧の壁）
+    const wm = new THREE.MeshBasicMaterial({ color: '#e8eef0', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false });
+    this.wall = new THREE.Mesh(new THREE.PlaneGeometry(1, 60), wm);
+    this.wall.rotation.y = Math.PI / 2; this.wall.scale.x = 1600;
+    S.add(this.wall);
+    // 狙いの印
+    this.aimMark = new THREE.Mesh(new THREE.RingGeometry(2.2, 3, 24), new THREE.MeshBasicMaterial({ color: '#ffdc78', transparent: true, opacity: 0.8, depthWrite: false }));
+    this.aimMark.rotation.x = -Math.PI / 2; S.add(this.aimMark);
+    // ゴールの目印
+    const [gx, gz] = ll2sea(GOAL.lon, GOAL.lat);
+    this.goal = { x: gx, z: gz };
+    const gm = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, 300, 16, 1, true), new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
+    gm.position.set(gx, 150, gz); S.add(gm); this.goalBeam = gm; gm.visible = false;
+    this.bulletGeo = new THREE.SphereGeometry(0.5, 6, 4);
+    this.bulletMat = new THREE.MeshBasicMaterial({ color: '#2a2a2a' });
+    this.bombMat = new THREE.MeshBasicMaterial({ color: '#ff8a2a' });
+    this.smokeTex = makeSmokeTex();
+  }
+
+  buildSky() {
+    const geo = new THREE.SphereGeometry(12000, 24, 12);
+    this.skyU = { top: { value: new THREE.Color('#5a8ed0') }, hor: { value: new THREE.Color('#d8e6ee') }, sunDir: { value: new THREE.Vector3(-0.4, 0.5, 0.45).normalize() }, sunCol: { value: new THREE.Color('#fff0c8') } };
+    const m = new THREE.ShaderMaterial({
+      uniforms: this.skyU, side: THREE.BackSide, depthWrite: false, fog: false,
+      vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); gl_Position.z = gl_Position.w; }',
+      fragmentShader: `uniform vec3 top; uniform vec3 hor; uniform vec3 sunDir; uniform vec3 sunCol; varying vec3 vP;
+        void main(){ float h = max(vP.y, 0.0); vec3 c = mix(hor, top, pow(h, 0.55)); float s = max(dot(normalize(vP), sunDir), 0.0);
+        c += sunCol * (pow(s, 600.0) * 4.0 + pow(s, 12.0) * 0.35); if (vP.y < 0.0) c = hor; gl_FragColor = vec4(c, 1.0); }`,
+    });
+    this.sky = new THREE.Mesh(geo, m);
+    this.sky.frustumCulled = false; this.sky.renderOrder = -1;
+    this.scene.add(this.sky);
+  }
+
+  buildWater() {
+    // 海岸からの近さ（浅瀬の色・白波）
+    const s = 2, W = DEM.w / s, H = DEM.h / s;
+    const d = new Float32Array(W * H).fill(99);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (isLandPx(x * s, y * s) || isLandPx(x * s + 1, y * s + 1)) d[y * W + x] = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (x > 0) d[i] = Math.min(d[i], d[i - 1] + 1); if (y > 0) d[i] = Math.min(d[i], d[i - W] + 1); if (x > 0 && y > 0) d[i] = Math.min(d[i], d[i - W - 1] + 1.41); if (x < W - 1 && y > 0) d[i] = Math.min(d[i], d[i - W + 1] + 1.41); }
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const i = y * W + x; if (x < W - 1) d[i] = Math.min(d[i], d[i + 1] + 1); if (y < H - 1) d[i] = Math.min(d[i], d[i + W] + 1); if (x < W - 1 && y < H - 1) d[i] = Math.min(d[i], d[i + W + 1] + 1.41); if (x > 0 && y < H - 1) d[i] = Math.min(d[i], d[i + W - 1] + 1.41); }
+    const data = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) data[i] = Math.round(clamp(1 - d[i] / 10, 0, 1) * 255);
+    const tex = new THREE.DataTexture(data, W, H, THREE.RedFormat, THREE.UnsignedByteType);
+    tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.needsUpdate = true;
+    this.waterU = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
+      time: { value: 0 }, coast: { value: null }, mapSize: { value: new THREE.Vector2(DEM.w * SEA_K, DEM.h * SEA_K) },
+      sunDir: { value: new THREE.Vector3(-0.4, 0.6, 0.45).normalize() }, deep: { value: new THREE.Color('#1d4a66') }, shallow: { value: new THREE.Color('#3a9a9a') }, skyC: { value: new THREE.Color('#b8d0e0') },
+    }]);
+    this.waterU.coast.value = tex;
+    const m = new THREE.ShaderMaterial({
+      uniforms: this.waterU, fog: true, transparent: false,
+      vertexShader: `#include <common>
+        #include <fog_pars_vertex>
+        #include <logdepthbuf_pars_vertex>
+        varying vec3 vW;
+        void main(){ vec4 wp = modelMatrix * vec4(position,1.0); vW = wp.xyz; vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;
+        #include <logdepthbuf_vertex>
+        #include <fog_vertex>
+        }`,
+      fragmentShader: `#include <common>
+        #include <fog_pars_fragment>
+        #include <logdepthbuf_pars_fragment>
+        uniform float time; uniform sampler2D coast; uniform vec2 mapSize; uniform vec3 sunDir; uniform vec3 deep; uniform vec3 shallow; uniform vec3 skyC;
+        varying vec3 vW;
+        vec2 wave(vec2 p, vec2 d, float f, float s, float a){ float ph = dot(p, d) * f + time * s; return d * cos(ph) * a * f; }
+        void main(){
+          #include <logdepthbuf_fragment>
+          vec2 p = vW.xz;
+          vec2 g = wave(p, normalize(vec2(1.0,0.3)), 0.21, 1.6, 0.35) + wave(p, normalize(vec2(-0.4,1.0)), 0.33, 2.1, 0.22) + wave(p, normalize(vec2(0.7,-0.8)), 0.9, 3.3, 0.06) + wave(p, normalize(vec2(-1.0,-0.2)), 1.7, 4.7, 0.03);
+          float dist = length(cameraPosition - vW);
+          float fade = 1.0 / (1.0 + dist / 260.0);
+          vec3 n = normalize(vec3(-g.x * fade, 1.0, -g.y * fade));
+          vec3 v = normalize(cameraPosition - vW);
+          float fres = pow(1.0 - max(dot(n, v), 0.0), 4.0);
+          float c = texture2D(coast, p / mapSize).r;
+          vec3 col = mix(deep, shallow, smoothstep(0.35, 1.0, c));
+          col = mix(col, skyC, fres * 0.75);
+          vec3 h = normalize(sunDir + v);
+          col += vec3(1.0, 0.95, 0.8) * pow(max(dot(n, h), 0.0), 220.0) * 1.6 * (0.3 + 0.7 * fade);
+          float foam = smoothstep(0.9, 0.99, c) * (0.6 + 0.4 * sin(time * 1.2 + (p.x + p.y) * 0.08)) * (0.4 + 0.6 * fade);
+          col = mix(col, vec3(0.92, 0.95, 0.95), foam * 0.6);
+          gl_FragColor = vec4(col, 1.0);
+          #include <fog_fragment>
+        }`,
+    });
+    this.water = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000, 1, 1), m);
+    this.water.rotation.x = -Math.PI / 2;
+    this.water.frustumCulled = false;
+    this.scene.add(this.water);
+  }
+
+  // ---- 地形（64 画素ずつ。近いほど細かく） ----
+  scanChunks() {
+    this.nx = Math.ceil(DEM.w / CH); this.ny = Math.ceil(DEM.h / CH);
+    this.landChunks = [];
+    for (let cy = 0; cy < this.ny; cy++) for (let cx = 0; cx < this.nx; cx++) {
+      let land = 0;
+      for (let y = cy * CH; y <= Math.min(DEM.h - 1, cy * CH + CH); y += 2) for (let x = cx * CH; x <= Math.min(DEM.w - 1, cx * CH + CH); x += 2) if (DEM.data[y * DEM.w + x] > 0) land++;
+      if (land) this.landChunks.push({ cx, cy, key: cx + ',' + cy, mesh: null, stride: 0, wx: (cx + 0.5) * CH * SEA_K, wz: (cy + 0.5) * CH * SEA_K });
+    }
+  }
+  chunkGeometry(cx, cy, s) {
+    const n = CH / s + 1;
+    const pos = new Float32Array((n * n + n * 4) * 3), col = new Float32Array((n * n + n * 4) * 3);
+    const c = new THREE.Color();
+    let k = 0;
+    const put = (px, py, yOff) => {
+      const h = hPx(px, py);
+      const dx = hPx(px + 1, py) - hPx(px - 1, py), dy = hPx(px, py + 1) - hPx(px, py - 1);
+      const slope = Math.hypot(dx, dy) / (2 * 126);
+      let seaNear = false;
+      if (h > 0 && h < 30) for (const [ox, oy] of [[2, 0], [-2, 0], [0, 2], [0, -2]]) if (hPx(px + ox, py + oy) <= 0) { seaNear = true; break; }
+      landColor(c, h, slope, px, py, seaNear);
+      pos[k * 3] = px * SEA_K; pos[k * 3 + 1] = (h > 0 ? h * VEX + 0.25 : h * VEX) + yOff; pos[k * 3 + 2] = py * SEA_K;
+      col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b; k++;
+    };
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) put(Math.min(cx * CH + i * s, DEM.w - 1), Math.min(cy * CH + j * s, DEM.h - 1), 0);
+    const idx = [];
+    for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) { const a = j * n + i; idx.push(a, a + n, a + 1, a + 1, a + n, a + n + 1); }
+    // すきまを隠すスカート
+    const edges = [[0, 0, 1, 0], [0, n - 1, 1, 0], [0, 0, 0, 1], [n - 1, 0, 0, 1]];
+    for (const [i0, j0, di, dj] of edges) {
+      const base = k;
+      for (let t = 0; t < n; t++) put(Math.min(cx * CH + (i0 + di * t) * s, DEM.w - 1), Math.min(cy * CH + (j0 + dj * t) * s, DEM.h - 1), -6);
+      for (let t = 0; t < n - 1; t++) { const a = (j0 + dj * t) * n + i0 + di * t, b = (j0 + dj * (t + 1)) * n + i0 + di * (t + 1); idx.push(a, base + t, b, b, base + t, base + t + 1, a, b, base + t, b, base + t + 1, base + t); }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.setIndex(idx); g.computeVertexNormals();
+    return g;
+  }
+  updateChunks(force) {
+    const P = this.P;
+    let built = 0;
+    for (const ch of this.landChunks) {
+      const d = Math.hypot(ch.wx - P.x, ch.wz - P.z);
+      const want = d < 1500 ? 1 : d < 3800 ? 2 : d < 7500 ? 4 : d < 12000 ? 8 : 0;
+      if (want === ch.stride) continue;
+      if (!force && built >= 2 && want !== 0) continue; // 1 フレームに作る数を抑える
+      if (ch.mesh) { this.scene.remove(ch.mesh); ch.mesh.geometry.dispose(); ch.mesh = null; }
+      ch.stride = want;
+      if (!want) continue;
+      ch.mesh = new THREE.Mesh(this.chunkGeometry(ch.cx, ch.cy, want), this.chunkMat);
+      this.scene.add(ch.mesh); built++;
+    }
+  }
+
+  // ---- 橋 ----
+  buildBridges() {
+    this.bridges = [];
+    for (const b of BRIDGES) {
+      let [ax, az] = ll2sea(b.a[0], b.a[1]), [bx, bz] = ll2sea(b.b[0], b.b[1]);
+      // 海の部分を探して両端を岸に合わせる（データの粗さで岸が無いときはそのまま）
+      const L = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / L, uz = (bz - az) / L;
+      let first = null, last = null;
+      for (let t = -0.4 * L; t <= 1.4 * L; t += 2) { const x = ax + ux * t, z = az + uz * t; if (hSea(x, z) < -1) { if (first === null) first = t; last = t; } }
+      if (first !== null && last - first > L * 0.4 && last - first < L * 1.8) {
+        const pad = Math.max(8, L * 0.06);
+        const t0 = first - pad, t1 = last + pad;
+        bx = ax + ux * t1; bz = az + uz * t1; ax = ax + ux * t0; az = az + uz * t0;
+      }
+      const def = { ...b, a: [ax, az], b: [bx, bz], deckY: b.deck * VEX + 1, towerH: b.towerH * VEX, width: 3.6, archH: (b.archH || 0) * VEX, span: (b.span || 0) / 10 };
+      if (b.truss) def.truss = b.truss * VEX;
+      const m = makeBridge(def);
+      // 岸の高さまで寄せる
+      this.scene.add(m);
+      const Lw = Math.hypot(bx - ax, bz - az);
+      for (const tz of m.userData.towerZ) {
+        const x = ax + (bx - ax) * tz / Lw, z = az + (bz - az) * tz / Lw;
+        this.colliders.push({ x, z, r: 3 });
+      }
+      this.bridges.push({ def: b, x: (ax + bx) / 2, z: (az + bz) / 2, ax, az, bx, bz, seen: false });
+    }
+  }
+
+  buildLandmarks() {
+    this.marks = [];
+    for (const l of LANDMARKS) {
+      const [x, z] = ll2sea(l.lon, l.lat);
+      const big = 4; // 海から見えるよう大きく
+      const hs = (l.h / 10) * big;
+      let o;
+      switch (l.kind) {
+        case 'otorii': o = makeTorii(hs, '#d8401c', true); break;
+        case 'itsukushima': {
+          o = new THREE.Group();
+          for (let i = -2; i <= 2; i++) { const h = makeHall(3 * big / 2, 2.2 * big / 2, 1.4 * big / 2, '#5a4a3a', '#f4eee0', '#d8401c'); h.position.set(i * 2.4 * big / 2, 0.3, -Math.abs(i) * 0.8); o.add(h); }
+          const walk = new THREE.Mesh(new THREE.BoxGeometry(16 * big / 2, 0.3, 0.8), mat('#d8401c')); walk.position.set(0, 0.4, 2); o.add(walk);
+          break;
+        }
+        case 'pagoda': o = makePagoda(5, hs, l.color || '#c8401c'); break;
+        case 'joyato': o = makeJoyato(hs); break;
+        case 'gangi': o = makeGangi(16, 5); break;
+        case 'hall': o = makeHall(hs * 0.9, hs * 0.7, hs * 0.5, '#3a3c44', '#e8dcc0', '#6a4a2a'); break;
+        case 'stupa': o = makePagoda(2, hs, '#9a948a'); break;
+        case 'shrine': { o = new THREE.Group(); o.add(makeHall(hs, hs * 0.7, hs * 0.45, '#5a4a3a', '#f0e8d8', '#c8401c')); const t = makeTorii(hs * 0.8); t.position.z = hs * 1.4; o.add(t); break; }
+        case 'pumpkin': o = makePumpkin(hs); break;
+        case 'lighthouse': o = makeLighthouse(hs); break;
+        case 'suitenmon': { o = new THREE.Group(); const gate = makeHall(hs * 0.8, hs * 0.4, hs * 0.5, '#2a6a5a', '#f4f0e8', '#e03820'); o.add(gate); const base = new THREE.Mesh(new THREE.BoxGeometry(hs * 1.2, hs * 0.2, hs * 0.6), mat('#f4f0e8')); o.add(base); break; }
+        case 'tomomori': { o = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(hs * 0.4, hs * 0.5, hs * 0.4), mat('#7a766a')); b.position.y = hs * 0.25; o.add(b); const st = new THREE.Mesh(new THREE.CylinderGeometry(hs * 0.08, hs * 0.12, hs * 0.6, 6), mat('#3a4a3a')); st.position.y = hs * 0.8; o.add(st); const anc = new THREE.Mesh(new THREE.TorusGeometry(hs * 0.18, hs * 0.04, 6, 10), mat('#3a4a3a')); anc.position.y = hs * 1.25; o.add(anc); break; }
+        case 'sandbar': {
+          o = new THREE.Mesh(new THREE.BoxGeometry(3, 0.4, 40), mat('#e6d8b0')); o.rotation.y = 0.5; o.userData.tide = true; break;
+        }
+        default: o = makeHall(hs, hs, hs);
+      }
+      let y = l.inSea ? 0 : Math.max(0.3, hSea(x, z) * VEX + 0.2);
+      if (l.kind === 'itsukushima') y = 0.1;
+      o.position.set(x, y, z);
+      if (l.rot) o.rotation.y = l.rot;
+      this.scene.add(o);
+      this.marks.push({ l, x, z, o, seen: false });
+    }
+  }
+  buildWhirlpools() {
+    this.pools = [];
+    const tex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 256;
+      const g = c.getContext('2d'); g.translate(128, 128);
+      g.strokeStyle = 'rgba(255,255,255,0.8)';
+      for (let k = 0; k < 4; k++) { g.beginPath(); for (let a = 0; a < 12; a += 0.05) { const r = 4 + a * 10; g.lineTo(Math.cos(a + k * 1.57) * r, Math.sin(a + k * 1.57) * r); } g.lineWidth = 3; g.stroke(); }
+      const t = new THREE.CanvasTexture(c); return t;
+    })();
+    for (const w of WHIRLPOOLS) {
+      const [x, z] = ll2sea(w.lon, w.lat);
+      const r = w.r / 10;
+      const group = new THREE.Group();
+      for (let i = 0; i < 3; i++) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(r * (0.5 + i * 0.25), r * (0.5 + i * 0.25)), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.55, depthWrite: false }));
+        m.rotation.x = -Math.PI / 2; m.position.set((i - 1) * r * 0.5, 0.15 + i * 0.01, (i % 2) * r * 0.3);
+        group.add(m);
+      }
+      group.position.set(x, 0, z);
+      this.scene.add(group);
+      this.pools.push({ w, x, z, r, group, warned: false });
+    }
+  }
+
+  // ---- ミニマップ ----
+  buildMinimap() {
+    const c = document.createElement('canvas');
+    const s = 4; c.width = DEM.w / s; c.height = DEM.h / s;
+    const g = c.getContext('2d');
+    const im = g.createImageData(c.width, c.height);
+    for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+      const h = DEM.data[y * s * DEM.w + x * s];
+      const o = (y * c.width + x) * 4;
+      if (h <= 0) { im.data[o] = 28; im.data[o + 1] = 58; im.data[o + 2] = 86; }
+      else { const k = Math.min(1, h / 600); im.data[o] = 120 - k * 50; im.data[o + 1] = 130 - k * 40; im.data[o + 2] = 80 - k * 30; }
+      im.data[o + 3] = 255;
+    }
+    g.putImageData(im, 0, 0);
+    this.miniBg = c;
+  }
+  drawMinimap() {
+    const cv = $('minimap'), g = cv.getContext('2d');
+    const W = cv.width, H = cv.height;
+    const P = this.P;
+    // 自船のまわり（約 60km 四方）を拡大
+    const span = 600; // DEM 画素
+    const px = P.x / SEA_K, py = P.z / SEA_K;
+    const sx = clamp(px - span / 2, 0, DEM.w - span), sy = clamp(py - span * H / W / 2, 0, DEM.h - span * H / W);
+    const sh = span * H / W;
+    g.drawImage(this.miniBg, sx / 4, sy / 4, span / 4, sh / 4, 0, 0, W, H);
+    const k = W / span;
+    const tx = (x) => (x / SEA_K - sx) * k, ty = (z) => (z / SEA_K - sy) * k;
+    // 戻れない線
+    g.fillStyle = 'rgba(230,235,240,0.35)';
+    const lx = tx(this.G.minX + BACK);
+    if (lx < W) g.fillRect(lx, 0, W - lx, H);
+    // 島（財宝の有無）
+    for (const isl of this.G.islands) {
+      const x = (isl.px - sx) * k, y = (isl.py - sy) * k;
+      if (x < -4 || y < -4 || x > W + 4 || y > H + 4) continue;
+      const taken = this.G.taken.has(isl.id);
+      g.fillStyle = taken ? 'rgba(160,160,160,0.8)' : '#ffd24a';
+      g.beginPath(); g.arc(x, y, taken ? 2 : 3, 0, TAU); g.fill();
+    }
+    for (const e of this.enemies) { if (e.sink) continue; g.fillStyle = e.boss ? '#ff3a3a' : '#ff8a6a'; g.fillRect(tx(e.x) - 2, ty(e.z) - 2, 4, 4); }
+    // ゴール
+    g.fillStyle = '#ffffff'; g.font = '700 11px serif';
+    const gx = tx(this.goal.x), gy = ty(this.goal.z);
+    if (gx > 0 && gx < W && gy > 0 && gy < H) { g.fillText(L('★下関', '★Shimonoseki'), gx - 6, gy + 4); }
+    // 自船
+    g.save(); g.translate(tx(P.x), ty(P.z)); g.rotate(P.h);
+    g.fillStyle = '#ff4a3a'; g.beginPath(); g.moveTo(7, 0); g.lineTo(-5, -4); g.lineTo(-3, 0); g.lineTo(-5, 4); g.closePath(); g.fill();
+    g.restore();
+    // 全体の進み具合
+    const all = $('routebar');
+    if (all) {
+      const [x0] = ll2sea(START.lon, START.lat), x1 = this.goal.x;
+      const p = clamp((x0 - P.x) / (x0 - x1), 0, 1);
+      all.style.width = (p * 100).toFixed(1) + '%';
+    }
+  }
+
+  // ---------------- 敵 ----------------
+  spawnEnemy(type, x, z, faction, opt = {}) {
+    const crest = faction.crest;
+    const shipType = faction.crest === 'heike' ? (type === 'ataka' ? 'ataka' : 'heike') : type;
+    const m = makeShip(shipType, { crest });
+    if (faction.crest === 'heike' && type === 'ataka') { m.userData.sail && (m.userData.sail.material = m.userData.sail.material.clone()); }
+    m.scale.setScalar(SHIP_SCALE);
+    this.scene.add(m);
+    const hp = { kobaya: 60, seki: 130, ataka: 320 }[type] * (opt.hpMul || 1);
+    const e = {
+      type, x, z, h: Math.atan2(this.P.z - z, this.P.x - x), v: 0, hp, maxHp: hp, m, faction, cd: rand(1, 3),
+      speed: { kobaya: 27, seki: 21, ataka: 15 }[type] * (opt.spMul || 1), r: { kobaya: 2.4, seki: 3.4, ataka: 5 }[type],
+      name: opt.name || L(`${faction.name}の${{ kobaya: '小早', seki: '関船', ataka: '安宅船' }[type]}`, `${faction.en} ${{ kobaya: 'kobaya', seki: 'sekibune', ataka: 'atakebune' }[type]}`), boss: !!opt.boss, wob: rand(0, TAU),
+      dmg: { kobaya: 7, seki: 9, ataka: 12 }[type] * (opt.dmgMul || 1), guns: { kobaya: 1, seki: 2, ataka: 4 }[type], sink: 0, final: !!opt.final, ghost: faction.crest === 'heike',
+    };
+    if (e.ghost) m.traverse((o) => { if (o.material && o.material.color && !o.material.map) { o.material = o.material.clone(); o.material.emissive = new THREE.Color('#2a0606'); } });
+    this.enemies.push(e);
+    return e;
+  }
+  waterAt(x, z, margin = 2.5) { return hSea(x, z) < -margin; }
+  trySpawn(dt) {
+    const G = this.G, P = this.P;
+    if (G.final) return;
+    const [lon] = sea2ll(P.x, P.z);
+    const zone = zoneAt(lon);
+    const alive = this.enemies.filter((e) => !e.sink).length;
+    this.spawnT -= dt;
+    if (this.spawnT > 0 || alive >= zone.max) return;
+    this.spawnT = rand(7, 14) / Math.max(0.3, zone.rate);
+    for (let tries = 0; tries < 12; tries++) {
+      const a = Math.PI + rand(-1.1, 1.1); // 西寄り
+      const d = rand(650, 1100);
+      const x = P.x + Math.cos(a) * d, z = P.z + Math.sin(a) * d;
+      if (!this.waterAt(x, z, 3) || !this.waterAt(x + 15, z) || !this.waterAt(x - 15, z) || !this.waterAt(x, z + 15) || !this.waterAt(x, z - 15)) continue;
+      const prog = G.progress;
+      const r = Math.random();
+      const type = r < 0.12 + prog * 0.2 && zone.max >= 3 ? 'ataka' : r < 0.45 + prog * 0.2 ? 'seki' : 'kobaya';
+      const n = type === 'kobaya' && Math.random() < 0.5 ? 2 : 1;
+      for (let i = 0; i < n; i++) this.spawnEnemy(type, x + i * 20, z + i * 12, zone.faction, { hpMul: 1 + prog * 0.6, dmgMul: 1 + prog * 0.5 });
+      if (G.t - (this.lastWarn || -99) > 20) { msg(L(`${zone.faction.name}の船が現れた！`, `${zone.faction.en} ships sighted!`), 'warn', 4); this.lastWarn = G.t; Sfx.horn(0.25, 0, 0.95); }
+      break;
+    }
+  }
+  startFinal() {
+    const G = this.G;
+    G.final = true;
+    banner(L('壇ノ浦の決戦', 'Battle of Dan-no-ura'), L('平家の怨霊船団が現れた。一艘残らず沈めよ', 'The ghost fleet of the Heike rises. Sink every last ship!'));
+    msg(L('「見るべきほどのことは見つ。今はただ自害せん」——平知盛の怨念が海を覆う', '“I have seen all there is to see.” — the grudge of Taira no Tomomori covers the sea'), 'say', 7);
+    Sfx.bgm('final');
+    flash('rgba(120,0,0,0.35)');
+    const fac = ZONES[ZONES.length - 1].faction;
+    const [dx, dz] = ll2sea(DANNOURA.lon, DANNOURA.lat);
+    const spots = [];
+    for (let tries = 0; spots.length < 11 && tries < 400; tries++) {
+      const a = rand(0, TAU), d = rand(30, 420);
+      const x = dx + Math.cos(a) * d, z = dz + Math.sin(a) * d;
+      if (!this.waterAt(x, z, 3)) continue;
+      if (spots.some((s) => Math.hypot(s[0] - x, s[1] - z) < 30)) continue;
+      spots.push([x, z]);
+    }
+    spots.forEach(([x, z], i) => {
+      if (i === 0) this.spawnEnemy('ataka', x, z, fac, { name: L('平知盛の御座船', 'Flagship of Taira no Tomomori'), boss: true, hpMul: 3.2, dmgMul: 1.6, final: true });
+      else this.spawnEnemy(i % 3 === 0 ? 'ataka' : 'seki', x, z, fac, { name: i % 3 === 0 ? L('平家の大船', 'Heike war barge') : L('平家の怨霊船', 'Heike ghost ship'), hpMul: 1.6, dmgMul: 1.4, final: true });
+    });
+    G.finalTotal = spots.length;
+  }
+
+  // ---------------- 毎フレーム ----------------
+  update(dt, I) {
+    const G = this.G, P = this.P;
+    this.t += dt;
+    // 入力
+    if (I.pressed('KeyW') || I.pressed('ArrowUp')) { P.sail = Math.min(3, P.sail + 1); Sfx.whoosh(); }
+    if (I.pressed('KeyS') || I.pressed('ArrowDown')) { P.sail = Math.max(-1, P.sail - 1); Sfx.whoosh(); }
+    let turn = 0;
+    if (I.down('KeyA') || I.down('ArrowLeft')) turn -= 1;
+    if (I.down('KeyD') || I.down('ArrowRight')) turn += 1;
+    if (I.joy) {
+      // スティック：向けた方向へ舵を切り、倒した量で帆を張る
+      const want = Math.atan2(I.joy.y, I.joy.x) + this.camYaw + Math.PI / 2 + Math.PI / 2 - Math.PI / 2;
+      const a = Math.atan2(I.joy.y, I.joy.x);
+      const camH = this.camHeading();
+      const target = camH + a + Math.PI / 2;
+      const d = angDiff(target, P.h);
+      const mag = Math.min(1, Math.hypot(I.joy.x, I.joy.y));
+      turn = clamp(d * 2, -1, 1) * (mag > 0.25 ? 1 : 0);
+      P.sail = mag > 0.25 ? (mag > 0.8 ? 3 : 2) : P.sail;
+    }
+    const dash = (I.down('Space') || I.down('ShiftLeft') || I.down('ShiftRight') || I.tDash) && G.st > 3 && P.sail > 0;
+    if (dash) { G.st = Math.max(0, G.st - 22 * dt); G.stDelay = 0.6; if (Math.random() < dt * 4) Sfx.oar(); }
+    else { if (G.stDelay > 0) G.stDelay -= dt; else G.st = Math.min(G.maxSt, G.st + 16 * dt); }
+    const target = [-6, 0, 13, 22, 31][P.sail + 1] + (dash ? 15 : 0);
+    P.v += (target - P.v) * (1 - Math.exp(-dt * (target > P.v ? 0.7 : 1.2)));
+    const tr = turn * (0.55 + Math.min(0.5, Math.abs(P.v) / 40));
+    P.h += tr * dt;
+    P.roll += (-turn * Math.min(1, Math.abs(P.v) / 25) * 0.12 - P.roll) * (1 - Math.exp(-dt * 3));
+    // 渦潮
+    for (const w of this.pools) {
+      const dx = w.x - P.x, dz = w.z - P.z, d = Math.hypot(dx, dz);
+      if (d < w.r * 1.2) {
+        const k = (1 - d / (w.r * 1.2)) * w.w.power;
+        P.x += (dx / d * 3 - dz / d * 9) * k * dt; P.z += (dz / d * 3 + dx / d * 9) * k * dt;
+        P.h += k * 0.6 * dt;
+        if (!w.warned) { w.warned = true; msg(L(`${w.w.name}に巻き込まれた！`, `Caught in the ${w.w.en}!`), 'warn', 4); Sfx.splash(0.5); }
+        if (d < w.r * 0.35 && P.inv <= 0) { this.hurtHull(4 * w.w.power, P.x, P.z, true); P.inv = 0.6; }
+      } else if (d > w.r * 2) w.warned = false;
+    }
+    // 移動と座礁
+    const nx = P.x + Math.cos(P.h) * P.v * dt, nz = P.z + Math.sin(P.h) * P.v * dt;
+    const bowX = nx + Math.cos(P.h) * 3.2 * Math.sign(P.v || 1), bowZ = nz + Math.sin(P.h) * 3.2 * Math.sign(P.v || 1);
+    if (hSea(bowX, bowZ) > -1.2 || hSea(nx, nz) > -1.2) {
+      if (Math.abs(P.v) > 14 && P.inv <= 0) { this.hurtHull(Math.abs(P.v) * 0.25, P.x, P.z, true); msg(L('座礁した！', 'Ran aground!'), 'warn', 2); P.inv = 1; Sfx.crack(0.3); }
+      P.v *= -0.25;
+    } else { P.x = nx; P.z = nz; }
+    // 橋脚
+    for (const c of this.colliders) {
+      const dx = P.x - c.x, dz = P.z - c.z, d = Math.hypot(dx, dz);
+      if (d < c.r + 2.5) { P.x = c.x + dx / d * (c.r + 2.5); P.z = c.z + dz / d * (c.r + 2.5); P.v *= 0.5; }
+    }
+    // 戻れない
+    if (P.x < G.minX) G.minX = P.x;
+    const limit = G.minX + BACK;
+    if (P.x > limit) { P.x = limit; if (Math.cos(P.h) > 0) P.v *= 0.9; if (this.t - (this.backMsg || -9) > 4) { msg(L('後戻りはできぬ。西へ進め！', 'There is no turning back. Sail west!'), 'warn', 3); this.backMsg = this.t; } }
+    this.wall.position.set(limit, 25, P.z);
+    this.wall.material.opacity = clamp(1 - (limit - P.x) / 250, 0, 0.55);
+    P.x = clamp(P.x, 30, DEM.w * SEA_K - 30); P.z = clamp(P.z, 30, DEM.h * SEA_K - 30);
+    if (P.inv > 0) P.inv -= dt;
+
+    // 船の姿
+    const s = this.ship;
+    s.position.set(P.x, 0.25 + Math.sin(this.t * 1.3) * 0.12, P.z);
+    s.rotation.set(0, 0, 0);
+    s.rotation.y = Math.atan2(-Math.cos(P.h), -Math.sin(P.h));
+    s.rotateZ(P.roll + Math.sin(this.t * 0.9) * 0.025);
+    s.rotateX(Math.sin(this.t * 1.1) * 0.02);
+    animateShip(s, this.t, P.v * (dash ? 2 : 1));
+    s.userData.sail.scale.set(1, P.sail <= 0 ? 0.25 : 0.55 + P.sail * 0.15, 1);
+    this.addWake(P.x, P.z, P.h, P.v, 3.2);
+
+    // 鉄砲
+    const aim = this.aimPoint(I);
+    this.aimMark.position.set(aim.x, 0.3, aim.z);
+    this.aimMark.visible = !!aim.lock || I.mouseAim;
+    P.cd -= dt; P.cdBomb -= dt;
+    if ((I.fire || I.down('KeyJ')) && P.cd <= 0) { I.fire = false; this.fireVolley(aim); }
+    if (I.bomb && P.cdBomb <= 0) { I.bomb = false; this.throwBomb(aim); }
+    I.fire = false; I.bomb = false;
+
+    // 敵
+    this.trySpawn(dt);
+    for (const e of this.enemies) this.updateEnemy(e, dt);
+    this.enemies = this.enemies.filter((e) => {
+      if (e.sink > 4.5 || (!e.final && (e.x - P.x > 1800 || Math.hypot(e.x - P.x, e.z - P.z) > 3200))) { this.scene.remove(e.m); return false; }
+      return true;
+    });
+    this.updateBullets(dt);
+    this.updateParts(dt);
+    this.updateLoot(dt);
+    // 進み具合と海域
+    const [lon, lat] = sea2ll(P.x, P.z);
+    const [x0] = ll2sea(START.lon, START.lat);
+    G.progress = clamp((x0 - P.x) / (x0 - this.goal.x), 0, 1);
+    G.lon = lon; G.lat = lat;
+    const zone = zoneAt(lon);
+    if (zone !== this.zone) {
+      if (this.zone) banner(N(zone), L(zone.faction.name + 'の海', 'Waters of the ' + zone.faction.en));
+      this.zone = zone;
+    }
+    if (!G.final && lon < FINAL_LON) this.startFinal();
+    if (G.final) {
+      const left = this.enemies.filter((e) => e.final && !e.sink).length;
+      G.finalLeft = left;
+      if (left === 0 && !G.finalCleared) { G.finalCleared = true; banner(L('平家の怨霊、鎮まる', 'The Heike ghosts are laid to rest'), L('下関（唐戸）の港へ船を着けよ', 'Bring the ship into Karato harbor, Shimonoseki')); Sfx.bell(); this.goalBeam.visible = true; Sfx.bgm('battle'); }
+      const dg = Math.hypot(P.x - this.goal.x, P.z - this.goal.z);
+      if (dg < 70) {
+        if (G.finalCleared) { G.onGoal(); }
+        else if (this.t - (this.goalMsg || -9) > 5) { msg(L(`まだ平家の船が ${left} 艘残っている！`, `${left} Heike ships still remain!`), 'warn', 3); this.goalMsg = this.t; }
+      }
+    }
+    // 名所・橋の案内
+    for (const m of [...this.marks, ...this.bridges]) {
+      if (m.seen) continue;
+      const d = Math.hypot(m.x - P.x, m.z - P.z);
+      if (d < 260) { m.seen = true; const o = m.l || m.def; msg(L(`${o.name}${m.def && m.def.group ? `（${m.def.group}）` : ''}が見える`, `In sight: ${o.en || o.name}`), 'sys', 4); }
+    }
+    for (const m of this.marks) if (m.o.userData.tide) m.o.position.y = Math.sin(this.t * 0.15) * 0.6 - 0.2; // 潮の満ち引き
+    for (const w of this.pools) w.group.children.forEach((c, i) => { c.rotation.z = this.t * (1.2 + i * 0.4); });
+    // 上陸できる島
+    this.landCheckT = (this.landCheckT || 0) - dt;
+    if (this.landCheckT <= 0) { this.landCheckT = 0.25; this.canLand = this.findLanding(); this.updateLandPrompt(); }
+    if (this.canLand && this.canLand.isl && (I.pressed('KeyE') || I.land)) { I.land = false; G.land(this.canLand); }
+    I.land = false;
+    // 音
+    const near = this.enemies.some((e) => !e.sink && Math.hypot(e.x - P.x, e.z - P.z) < 450);
+    if (!G.final && Sfx.bgmMode !== 'title') Sfx.bgm(near ? 'battle' : 'sea');
+    Sfx.sea(0.25 + Math.min(0.25, Math.abs(P.v) / 80));
+    // 空の色（大坂の朝から壇ノ浦の夕暮れへ）
+    this.updateSky(G.progress, G.final);
+    this.updateChunks(false);
+    this.updateCamera(dt, I);
+    this.water.position.set(Math.round(this.camera.position.x / 50) * 50, 0, Math.round(this.camera.position.z / 50) * 50);
+    this.sky.position.copy(this.camera.position);
+    this.waterU.time.value = this.t;
+  }
+  camHeading() { return this.P.h + this.camYaw; }
+  updateCamera(dt, I) {
+    const P = this.P;
+    if (I.down('KeyQ')) this.camYaw -= dt * 1.5;
+    if (I.down('KeyE') && !this.canLand) this.camYaw += dt * 1.5;
+    if (I.wheel) { this.camDist = clamp(this.camDist * (1 + I.wheel * 0.001), 18, 160); I.wheel = 0; }
+    this.camYaw *= Math.exp(-dt * 0.4);
+    const ch = this.camHeading();
+    const tx = P.x - Math.cos(ch) * this.camDist, tz = P.z - Math.sin(ch) * this.camDist;
+    const k = 1 - Math.exp(-dt * 3);
+    const cam = this.camera;
+    if (!this.camInit) { cam.position.set(tx, this.camH, tz); this.camInit = true; }
+    cam.position.x += (tx - cam.position.x) * k; cam.position.z += (tz - cam.position.z) * k;
+    const gh = Math.max(0, hSea(cam.position.x, cam.position.z) * VEX);
+    cam.position.y += (Math.max(this.camH * this.camDist / 46, gh + 6) - cam.position.y) * k;
+    cam.lookAt(P.x + Math.cos(P.h) * 14, 4, P.z + Math.sin(P.h) * 14);
+  }
+  updateSky(p, fin) {
+    const top = new THREE.Color('#5a8ed0'), hor = new THREE.Color('#d8e6ee');
+    const eveTop = new THREE.Color('#3a3a6a'), eveHor = new THREE.Color('#f0a070');
+    const redTop = new THREE.Color('#2a1020'), redHor = new THREE.Color('#c04a30');
+    const k = clamp((p - 0.55) / 0.45, 0, 1);
+    top.lerp(eveTop, k * 0.8); hor.lerp(eveHor, k * 0.75);
+    if (fin) { top.lerp(redTop, 0.7); hor.lerp(redHor, 0.6); }
+    this.skyU.top.value.copy(top); this.skyU.hor.value.copy(hor);
+    this.fog.color.copy(hor);
+    this.waterU.fogColor.value.copy(hor);
+    this.waterU.skyC.value.copy(hor).lerp(top, 0.3);
+    const sd = new THREE.Vector3(-0.4, 0.75 - k * 0.55, 0.45 - k * 0.2).normalize();
+    this.skyU.sunDir.value.copy(sd); this.waterU.sunDir.value.copy(sd);
+    this.sun.position.copy(sd);
+    this.sun.color.set('#fff4e0').lerp(new THREE.Color('#ffb070'), k);
+  }
+
+  aimPoint(I) {
+    const P = this.P;
+    if (I.mouseAim) {
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2((I.mx / innerWidth) * 2 - 1, -(I.my / innerHeight) * 2 + 1), this.camera);
+      const o = ray.ray.origin, d = ray.ray.direction;
+      if (d.y < -0.001) {
+        const t = -o.y / d.y;
+        let x = o.x + d.x * t, z = o.z + d.z * t;
+        const dd = Math.hypot(x - P.x, z - P.z);
+        if (dd > 300) { x = P.x + (x - P.x) / dd * 300; z = P.z + (z - P.z) / dd * 300; }
+        return { x, z };
+      }
+    }
+    // 自動照準：前方の近い敵
+    let best = null, bs = 1e9;
+    for (const e of this.enemies) {
+      if (e.sink) continue;
+      const dx = e.x - P.x, dz = e.z - P.z, d = Math.hypot(dx, dz);
+      if (d > 280) continue;
+      const ad = Math.abs(angDiff(Math.atan2(dz, dx), P.h));
+      const s = d + ad * 60;
+      if (s < bs) { bs = s; best = e; }
+    }
+    if (best) return { x: best.x + Math.cos(best.h) * best.v * 0.8, z: best.z + Math.sin(best.h) * best.v * 0.8, lock: best };
+    return { x: P.x + Math.cos(P.h) * 120, z: P.z + Math.sin(P.h) * 120 };
+  }
+  fireVolley(aim) {
+    const P = this.P;
+    P.cd = 0.55;
+    const a = Math.atan2(aim.z - P.z, aim.x - P.x);
+    const dist = clamp(Math.hypot(aim.x - P.x, aim.z - P.z), 40, 300);
+    for (let i = 0; i < 4; i++) {
+      const side = angDiff(a, P.h) > 0 ? 1 : -1;
+      const ox = P.x + Math.cos(P.h) * (i - 1.5) * 1.4 + Math.cos(P.h + side * Math.PI / 2) * 1.2;
+      const oz = P.z + Math.sin(P.h) * (i - 1.5) * 1.4 + Math.sin(P.h + side * Math.PI / 2) * 1.2;
+      const aa = a + rand(-0.03, 0.03);
+      const sp = 170;
+      const tf = dist / sp;
+      this.addBullet(ox, 2.2, oz, Math.cos(aa) * sp, (0 - 2.2) / tf + 4.9 * tf * 0.5 * 0, Math.sin(aa) * sp, 'p', 14, 2.1);
+      this.smoke(ox, 2.4, oz, 2);
+    }
+    Sfx.gun(0.5); setTimeout(() => Sfx.gun(0.35), 60);
+  }
+  throwBomb(aim) {
+    const P = this.P, G = this.G;
+    if (G.st < 25) { this.floats.add(P.x, 8, P.z, L('息が切れた', 'Out of breath'), '#ffdc78'); P.cdBomb = 0.3; return; }
+    G.st -= 25; G.stDelay = 0.8;
+    P.cdBomb = 1.2;
+    const dx = aim.x - P.x, dz = aim.z - P.z, d = clamp(Math.hypot(dx, dz), 30, 220);
+    const T = 0.6 + d / 160;
+    const vx = dx / Math.hypot(dx, dz) * d / T, vz = dz / Math.hypot(dx, dz) * d / T;
+    const vy = (0.5 * 40 * T * T - 3) / T;
+    this.addBullet(P.x, 3, P.z, vx, vy, vz, 'bomb', 70, T + 0.5);
+    Sfx.whoosh();
+  }
+  addBullet(x, y, z, vx, vy, vz, from, dmg, life) {
+    const m = new THREE.Mesh(this.bulletGeo, from === 'bomb' ? this.bombMat : this.bulletMat);
+    m.position.set(x, y, z);
+    if (from === 'bomb') m.scale.setScalar(2);
+    this.scene.add(m);
+    this.bullets.push({ m, x, y, z, vx, vy, vz, from, dmg, life });
+  }
+  updateBullets(dt) {
+    const P = this.P;
+    for (const b of this.bullets) {
+      b.life -= dt;
+      b.x += b.vx * dt; b.z += b.vz * dt;
+      if (b.from === 'bomb') { b.vy -= 40 * dt; b.y += b.vy * dt; }
+      else b.y = Math.max(0.6, b.y - dt * 0.4);
+      b.m.position.set(b.x, b.y, b.z);
+      if (b.from === 'bomb') {
+        if (b.y <= 0.2) {
+          b.life = 0;
+          this.explode(b.x, b.z);
+          for (const e of this.enemies) if (!e.sink && Math.hypot(e.x - b.x, e.z - b.z) < 16 + e.r) this.hurtEnemy(e, b.dmg * (1 - Math.hypot(e.x - b.x, e.z - b.z) / 30), true);
+        }
+        continue;
+      }
+      if (hSea(b.x, b.z) > 2) { b.life = 0; continue; }
+      if (b.from === 'p') {
+        for (const e of this.enemies) {
+          if (e.sink) continue;
+          if (Math.hypot(e.x - b.x, e.z - b.z) < e.r + 0.8) { b.life = 0; this.hurtEnemy(e, b.dmg); break; }
+        }
+      } else if (Math.hypot(P.x - b.x, P.z - b.z) < 3.2) {
+        b.life = 0; this.hurtHull(b.dmg, b.x, b.z);
+      }
+      if (b.life <= 0 && b.from !== 'hit') this.splashAt(b.x, b.z, 0.6);
+    }
+    this.bullets = this.bullets.filter((b) => { if (b.life <= 0) { this.scene.remove(b.m); return false; } return true; });
+  }
+  hurtEnemy(e, dmg, big) {
+    dmg *= rand(0.9, 1.1);
+    e.hp -= dmg; e.flash = 0.12;
+    this.floats.add(e.x, 6, e.z, Math.round(dmg), big ? '#ffb040' : '#ffffff', big);
+    Sfx.crack(big ? 0.5 : 0.25);
+    this.spark(e.x, 3, e.z);
+    if (e.hp <= 0 && !e.sink) this.sinkEnemy(e);
+  }
+  sinkEnemy(e) {
+    const G = this.G;
+    e.sink = 0.001;
+    G.sunk++;
+    Sfx.sink(); Sfx.swell(0.5);
+    this.explode(e.x, e.z, true);
+    const gold = { kobaya: 20, seki: 50, ataka: 150 }[e.type] * (e.boss ? 5 : 1);
+    G.gold += gold;
+    this.floats.add(e.x, 10, e.z, L(`撃沈！ +${gold}両`, `Sunk! +${gold} ryō`), '#ffd24a', true);
+    msg(L(`${e.name}を沈めた（撃沈 ${G.sunk}）`, `Sank the ${e.name} (${G.sunk} sunk)`), 'kill', 4);
+    if (e.boss) banner(L('平知盛、海に沈む', 'Tomomori sinks beneath the waves'), L('「沈むは平家か、海賊王か」', '“Who sinks — the Heike, or the Pirate King?”'));
+    // 浮かぶ樽（兵糧・修理）
+    if (Math.random() < (e.type === 'kobaya' ? 0.35 : 0.8) || e.boss) this.addLoot(e.x + rand(-4, 4), e.z + rand(-4, 4), e.type === 'ataka' ? 'big' : 'small');
+  }
+  hurtHull(dmg, fx, fz, silent) {
+    const G = this.G;
+    if (G.state !== 'play') return;
+    G.hull -= dmg;
+    G.lastHurt = G.t;
+    this.floats.add(this.P.x, 8, this.P.z, '-' + Math.round(dmg), '#ff5a4a');
+    if (!silent) Sfx.crack(0.35);
+    flash('rgba(200,0,0,0.18)');
+    this.camShake = 0.6;
+    if (G.hull <= 0) { G.hull = 0; G.die(L('船が沈んだ', 'Your ship went down')); }
+  }
+  updateEnemy(e, dt) {
+    const P = this.P;
+    if (e.sink) {
+      e.sink += dt;
+      e.m.position.y = -e.sink * 2.2;
+      e.m.rotation.z += dt * 0.25; e.m.rotation.x += dt * 0.1;
+      if (Math.random() < 0.3) this.smoke(e.x + rand(-3, 3), 2, e.z + rand(-3, 3), 1, '#404040');
+      return;
+    }
+    e.cd -= dt; e.flash = (e.flash || 0) - dt;
+    const dx = P.x - e.x, dz = P.z - e.z, d = Math.hypot(dx, dz);
+    const toP = Math.atan2(dz, dx);
+    let want;
+    if (d > 240) want = toP;
+    else if (d < 70) want = toP + Math.PI * 0.7 * (Math.sin(e.wob) > 0 ? 1 : -1);
+    else want = toP + (Math.PI / 2) * (Math.sin(e.wob) > 0 ? 1 : -1) * 0.85; // 舷側を向けて回る
+    // 陸を避ける
+    const probe = (a, L) => hSea(e.x + Math.cos(a) * L, e.z + Math.sin(a) * L) < -1.5;
+    if (!probe(e.h, 25) || !probe(e.h, 12)) {
+      want = probe(e.h + 0.9, 25) ? e.h + 1.2 : probe(e.h - 0.9, 25) ? e.h - 1.2 : e.h + Math.PI;
+    }
+    const da = angDiff(want, e.h);
+    e.h += clamp(da, -1, 1) * 0.9 * dt;
+    const tv = e.speed * (d < 100 ? 0.65 : 1);
+    e.v += (tv - e.v) * (1 - Math.exp(-dt * 0.8));
+    const nx = e.x + Math.cos(e.h) * e.v * dt, nz = e.z + Math.sin(e.h) * e.v * dt;
+    if (hSea(nx, nz) < -1.2) { e.x = nx; e.z = nz; } else { e.v *= 0.3; e.h += 1.5 * dt; }
+    // 船どうしの押し合い
+    for (const f of this.enemies) {
+      if (f === e || f.sink) continue;
+      const ox = f.x - e.x, oz = f.z - e.z, od = Math.hypot(ox, oz), rr = e.r + f.r + 1;
+      if (od < rr && od > 0.01) { e.x -= ox / od * (rr - od) * 0.5; e.z -= oz / od * (rr - od) * 0.5; }
+    }
+    if (d < e.r + 3.5) {
+      e.x -= dx / d * (e.r + 3.5 - d); e.z -= dz / d * (e.r + 3.5 - d);
+      if (P.inv <= 0 && Math.abs(this.P.v) > 15) { this.hurtEnemy(e, Math.abs(P.v) * 1.2, true); P.inv = 0.6; this.floats.add(e.x, 9, e.z, L('体当たり！', 'Ram!'), '#ff9a5a'); }
+    }
+    // 鉄砲を撃つ
+    if (d < 230 && e.cd <= 0) {
+      e.cd = rand(1.6, 2.8) / (e.boss ? 1.6 : 1);
+      const lead = d / 140;
+      const tx = P.x + Math.cos(P.h) * P.v * lead, tz = P.z + Math.sin(P.h) * P.v * lead;
+      for (let i = 0; i < e.guns; i++) {
+        setTimeout(() => {
+          if (e.sink || this.G.state !== 'play') return;
+          const a = Math.atan2(tz - e.z, tx - e.x) + rand(-0.06, 0.06);
+          this.addBullet(e.x, 2, e.z, Math.cos(a) * 140, 0, Math.sin(a) * 140, 'e', e.dmg, 2.0);
+          this.smoke(e.x, 2.4, e.z, 2);
+          Sfx.gun(clamp(0.45 - d / 700, 0.08, 0.4));
+        }, i * 160);
+      }
+    }
+    e.m.position.set(e.x, 0.2 + Math.sin(this.t * 1.2 + e.wob) * 0.12, e.z);
+    e.m.rotation.set(0, Math.atan2(-Math.cos(e.h), -Math.sin(e.h)), 0);
+    e.m.rotateZ(Math.sin(this.t * 0.8 + e.wob) * 0.03);
+    animateShip(e.m, this.t + e.wob, e.v);
+    this.addWake(e.x, e.z, e.h, e.v, e.r);
+  }
+
+  // ---- 粒子 ----
+  sprite(color, x, y, z, s, life, vx = 0, vy = 0, vz = 0, grow = 1) {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.smokeTex, color, transparent: true, depthWrite: false }));
+    m.position.set(x, y, z); m.scale.setScalar(s);
+    this.scene.add(m);
+    this.parts.push({ m, life, max: life, vx, vy, vz, grow });
+    if (this.parts.length > 260) { const p = this.parts.shift(); this.scene.remove(p.m); p.m.material.dispose(); }
+  }
+  smoke(x, y, z, n = 1, c = '#e8e8e8') { for (let i = 0; i < n; i++) this.sprite(c, x + rand(-1, 1), y, z + rand(-1, 1), rand(1.5, 3), rand(1, 1.6), rand(-1, 1), rand(1, 3), rand(-1, 1), 2); }
+  spark(x, y, z) { for (let i = 0; i < 4; i++) this.sprite('#ffd080', x, y, z, 1.2, 0.25, rand(-15, 15), rand(0, 12), rand(-15, 15), 0); }
+  splashAt(x, z, s = 1) { for (let i = 0; i < 4; i++) this.sprite('#f0f8ff', x + rand(-1, 1) * s, 0.5, z + rand(-1, 1) * s, rand(1, 2) * s, 0.6, rand(-2, 2), rand(5, 9) * s, rand(-2, 2), 1); }
+  explode(x, z, big) {
+    for (let i = 0; i < (big ? 14 : 8); i++) this.sprite(i % 2 ? '#ff9a40' : '#ffd070', x, 1.5, z, rand(2, 5), 0.5, rand(-12, 12), rand(4, 16), rand(-12, 12), 1.5);
+    this.smoke(x, 2, z, big ? 8 : 4, '#5a5a5a');
+    this.splashAt(x, z, big ? 3 : 2);
+    Sfx.bomb();
+  }
+  addWake(x, z, h, v, w) {
+    if (Math.abs(v) < 5 || Math.random() > dtWake(v)) return;
+    const bx = x - Math.cos(h) * w * 1.1, bz = z - Math.sin(h) * w * 1.1;
+    this.sprite('#ffffff', bx + rand(-0.8, 0.8), 0.25, bz + rand(-0.8, 0.8), rand(1.2, 2), 1.4, -Math.cos(h) * 2, 0, -Math.sin(h) * 2, 2.2);
+  }
+  updateParts(dt) {
+    for (const p of this.parts) {
+      p.life -= dt;
+      p.m.position.x += p.vx * dt; p.m.position.y += p.vy * dt; p.m.position.z += p.vz * dt;
+      p.vy -= dt * (p.grow === 0 ? 30 : 0);
+      p.m.scale.multiplyScalar(1 + dt * p.grow * 0.5);
+      p.m.material.opacity = clamp(p.life / p.max, 0, 1) * 0.8;
+    }
+    this.parts = this.parts.filter((p) => { if (p.life <= 0) { this.scene.remove(p.m); p.m.material.dispose(); return false; } return true; });
+  }
+  addLoot(x, z, kind) {
+    const g = new THREE.Group();
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.6, 10), mat('#8a5a2a'));
+    barrel.rotation.z = Math.PI / 2; g.add(barrel);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.08, 4, 12), mat('#2a2a2a')); ring.rotation.y = Math.PI / 2; g.add(ring);
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(1.8, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffe080', transparent: true, opacity: 0.2, depthWrite: false })); g.add(glow);
+    g.position.set(x, 0.3, z);
+    this.scene.add(g);
+    this.loot.push({ g, x, z, kind, t: 0 });
+  }
+  updateLoot(dt) {
+    const P = this.P, G = this.G;
+    for (const l of this.loot) {
+      l.t += dt;
+      l.g.position.y = 0.3 + Math.sin(l.t * 2) * 0.2; l.g.rotation.y += dt * 0.5;
+      if (Math.hypot(l.x - P.x, l.z - P.z) < 6) {
+        l.taken = true;
+        const fix = l.kind === 'big' ? 60 : 25;
+        G.hull = Math.min(G.maxHull, G.hull + fix);
+        G.hp = Math.min(G.maxHp, G.hp + fix);
+        G.gold += l.kind === 'big' ? 60 : 15;
+        this.floats.add(P.x, 8, P.z, L(`兵糧樽 船体+${fix}`, `Supply barrel: hull +${fix}`), '#7dff8a');
+        Sfx.coin();
+      }
+    }
+    this.loot = this.loot.filter((l) => { if (l.taken || l.t > 60) { this.scene.remove(l.g); return false; } return true; });
+  }
+
+  // ---- 上陸 ----
+  findLanding() {
+    const P = this.P, G = this.G;
+    const px = P.x / SEA_K, py = P.z / SEA_K;
+    const near = nearestLandPx(px, py, 6);
+    if (!near || near.d > 5) return null;
+    const comp = compAt(near.x, near.y);
+    let cands = G.islands.filter((i) => i.comp === comp && comp >= 0);
+    if (!cands.length) cands = G.islands.filter((i) => i.merged && Math.hypot(i.px - near.x, i.py - near.y) < 22);
+    if (!cands.length) {
+      const big = DEM.comps[comp] && DEM.comps[comp].area > 60000;
+      return { isl: null, why: big ? L('本州・四国・九州には上陸できぬ', 'You cannot land on Honshu, Shikoku or Kyushu') : L('無人島。財宝はなさそうだ', 'Uninhabited — no treasure here') };
+    }
+    cands.sort((a, b) => Math.hypot(a.px - near.x, a.py - near.y) - Math.hypot(b.px - near.x, b.py - near.y));
+    return { isl: cands[0], px: near.x, py: near.y, shipPx: px, shipPy: py, heading: P.h };
+  }
+  updateLandPrompt() {
+    const el = $('landPrompt');
+    const c = this.canLand;
+    if (!c) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    if (!c.isl) { el.innerHTML = `<span class="dim">${c.why}</span>`; return; }
+    const taken = this.G.taken.has(c.isl.id);
+    el.innerHTML = L(`<b>${c.isl.name}</b><small>（${c.isl.kana}）</small> ${taken ? '<span class="dim">財宝は奪った</span>' : '<span class="gold">財宝あり</span>'}<br><kbd>E</kbd> 上陸する`, `<b>${islandName(c.isl)}</b> ${taken ? '<span class="dim">already raided</span>' : '<span class="gold">treasure!</span>'}<br><kbd>E</kbd> Land`);
+  }
+
+  // ---------------- 描画 ----------------
+  render(dt) {
+    const cam = this.camera;
+    if (this.camShake > 0) { this.camShake -= dt; cam.position.x += rand(-0.4, 0.4); cam.position.y += rand(-0.3, 0.3); }
+    this.r.render(this.scene, cam);
+    this.floats.update(dt, cam);
+    this.tags.begin();
+    const P = this.P;
+    for (const e of this.enemies) {
+      if (e.sink) continue;
+      const d = Math.hypot(e.x - P.x, e.z - P.z);
+      if (d > 700) continue;
+      this.tags.put(cam, e.x, 9 + e.r, e.z, e.name, e.hp / e.maxHp, e.boss ? 'boss' : e.ghost ? 'ghost' : '');
+    }
+    this.tags.end();
+    this.miniT = (this.miniT || 0) - dt;
+    if (this.miniT <= 0) { this.miniT = 0.2; this.drawMinimap(); }
+  }
+  resize() { this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix(); }
+  // 島から戻ったとき
+  resume() {
+    this.updateChunks(true);
+    this.floats.clear();
+    this.P.v = 0; this.P.sail = 1;
+    this.P.inv = 2;
+    // 近くの敵を少し遠ざける
+    for (const e of this.enemies) if (!e.final && Math.hypot(e.x - this.P.x, e.z - this.P.z) < 300) { this.scene.remove(e.m); e.sink = 99; }
+    this.enemies = this.enemies.filter((e) => e.sink !== 99);
+    this.spawnT = 6;
+  }
+}
+
+function dtWake(v) { return Math.min(0.9, Math.abs(v) / 40); }
+function makeSmokeTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}

@@ -761,3 +761,12 @@ export function makeGanryu(h = 6) {
   const k = bronzeFigure(h, 'kojiro'); k.position.set(h * 0.7, h * 0.12, 0); k.rotation.y = -Math.PI / 2; g.add(k);
   return g;
 }
+
+// ---- 遠くの船の船影（船体・帆柱・帆。長さ 1、+z が舳先の向きに合わせて -z 向き） ----
+export function makeFleetGeometry() {
+  const B = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  return partsGeometry([
+    [B(0.3, 0.13, 1.0), '#3a2a1c', 0, 0.07, 0], [B(0.2, 0.1, 0.22), '#3a2a1c', 0, 0.16, -0.38], [B(0.24, 0.12, 0.2), '#2a1c14', 0, 0.18, 0.4],
+    [B(0.03, 0.7, 0.03), '#3a2418', 0, 0.45, 0], [B(0.5, 0.36, 0.02), '#e8e0cc', 0, 0.52, -0.02], [B(0.03, 0.5, 0.03), '#3a2418', 0, 0.35, 0.25], [B(0.38, 0.24, 0.02), '#e8e0cc', 0, 0.42, 0.24],
+  ]);
+}

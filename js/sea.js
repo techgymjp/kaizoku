@@ -2,7 +2,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { DEM, SEA_K, VEX, hPx, hSea, ll2sea, sea2ll, ll2px, isLandPx, compAt, nearestLandPx } from './geo.js';
 import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, DANNOURA, shipName, WIND, TIDE, STRAITS, HARBOR_HINT } from './data.js';
-import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeGanryu, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
+import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeGanryu, makeFleetGeometry, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
 import { L, islandName, getLang, romaji } from './i18n.js';
@@ -14,6 +14,7 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
 const SHIP_SCALE = 0.66; // 自分の船（敵の倍）
 const ENEMY_SCALE = 0.42;
+const SHIP_LEN = { kobaya: 18, seki: 24, ataka: 32 };
 const PR = 6; // 自分の船の当たりの大きさ
 const BRIDGE_V = 0.42; // 橋の高さの倍率（大きな船がくぐれるように）
 const KT = 0.6; // 潮の速さ 1 ノットをゲームの何単位/秒にするか（船の速さに合わせて強調）
@@ -524,33 +525,78 @@ export class Sea {
 
   // ---------------- 敵 ----------------
   spawnEnemy(type, x, z, faction, opt = {}) {
-    const crest = faction.crest;
     const cap = opt.cap;
-    const style = cap ? cap.style : 'jp';
-    const shipType = faction.crest === 'heike' ? (type === 'ataka' ? 'ataka' : 'heike') : type;
-    const m = makeShip(shipType, { crest: style === 'west' ? 'skull' : crest, style, sailColor: style === 'west' ? (crest === 'skull' ? '#2a2a2a' : '#e8dfc8') : undefined });
-    if (faction.crest === 'heike' && type === 'ataka') { m.userData.sail && (m.userData.sail.material = m.userData.sail.material.clone()); }
-    m.scale.setScalar(ENEMY_SCALE);
-    this.scene.add(m);
-    // 船員 8 人（船首・左舷・右舷・船尾に 2 人ずつ）
-    const ud = m.userData, crew = [];
-    const cstyle = faction.crest === 'heike' ? 'heike' : style;
-    (ud.spots || []).forEach(([x, z, y = 0], i) => {
-      const role = i < 2 ? 'gun' : i >= 6 ? (i === 6 ? 'chief' : 'gun') : 'spear';
-      const c = makeCrewman(role, cstyle, faction.color);
-      c.position.set(x, ud.deckY + y, z);
-      ud.inner.add(c); crew.push(c);
-    });
     const hp = { kobaya: 60, seki: 130, ataka: 320 }[type] * (opt.hpMul || 1);
+    const key = opt.key || 's' + (this.uid = (this.uid || 0) + 1);
+    const log = this.G.fleet;
+    // 航海で出会った船を 1 隻ずつ覚えておく（沈めなかった船は決戦に集まる）
+    let ent = log && log.get(key);
+    if (log && !ent && !opt.final) { ent = { type, cap, faction, crewN: 8 }; log.set(key, ent); }
     const e = {
-      type, x, z, h: Math.atan2(this.P.z - z, this.P.x - x), v: 0, hp, maxHp: hp, m, faction, cd: rand(1, 3),
-      speed: { kobaya: 27, seki: 21, ataka: 15 }[type] * (opt.spMul || 1), r: (ud.len || 20) * ENEMY_SCALE * 0.42, crew,
-      guard: opt.guard || null, pursue: !opt.guard, far: false, cap, name: opt.name || (cap ? shipName(cap, type, getLang()) : L(faction.name, faction.en)), boss: !!opt.boss, wob: rand(0, TAU),
-      dmg: { kobaya: 7, seki: 9, ataka: 12 }[type] * (opt.dmgMul || 1), guns: { kobaya: 1, seki: 2, ataka: 4 }[type], sink: 0, final: !!opt.final, ghost: faction.crest === 'heike',
+      key, ent, type, x, z, h: Math.atan2(this.P.z - z, this.P.x - x), v: 0, hp, maxHp: hp, m: null, faction, cd: rand(1, 3),
+      speed: { kobaya: 27, seki: 21, ataka: 15 }[type] * (opt.spMul || 1), r: SHIP_LEN[type] * ENEMY_SCALE * 0.42, crew: [], crewN: ent ? ent.crewN : 8,
+      guard: opt.guard || null, pursue: opt.pursue ?? !opt.guard, far: false, cap, name: opt.name || (cap ? shipName(cap, type, getLang()) : L(faction.name, faction.en)), boss: !!opt.boss, wob: rand(0, TAU),
+      dmg: { kobaya: 7, seki: 9, ataka: 12 }[type] * (opt.dmgMul || 1), guns: { kobaya: 1, seki: 2, ataka: 4 }[type], sink: 0, final: !!opt.final, ghost: faction.crest === 'heike', station: opt.station || null,
     };
-    if (e.ghost) m.traverse((o) => { if (o.material && o.material.color && !o.material.map) { o.material = o.material.clone(); o.material.emissive = new THREE.Color('#2a0606'); } });
+    if (e.crewN < 8) e.hp = e.maxHp * e.crewN / 8;
+    if (!opt.lite) this.attachModel(e);
     this.enemies.push(e);
     return e;
+  }
+  // 近くの船だけ、乗組員つきの細かいモデルを付ける（遠くは船影だけ）
+  attachModel(e) {
+    if (e.m) return;
+    const faction = e.faction, crest = faction.crest, style = e.cap ? e.cap.style : 'jp';
+    const shipType = crest === 'heike' ? (e.type === 'ataka' ? 'ataka' : 'heike') : e.type;
+    const m = makeShip(shipType, { crest: style === 'west' ? 'skull' : crest, style, sailColor: style === 'west' ? (crest === 'skull' ? '#2a2a2a' : '#e8dfc8') : undefined });
+    m.scale.setScalar(ENEMY_SCALE);
+    this.scene.add(m);
+    const ud = m.userData, cstyle = crest === 'heike' ? 'heike' : style;
+    e.crew = [];
+    (ud.spots || []).forEach(([x, z, y = 0], i) => {
+      if (i >= e.crewN) return;
+      const role = i < 2 ? 'gun' : i >= 6 ? (i === 6 ? 'chief' : 'gun') : 'spear';
+      const c = makeCrewman(role, cstyle, faction.color);
+      c.userData.keepGeo = true;
+      c.position.set(x, ud.deckY + y, z);
+      ud.inner.add(c); e.crew.push(c);
+    });
+    if (e.ghost) m.traverse((o) => { if (o.material && o.material.color && !o.material.map) { o.material = o.material.clone(); o.material.emissive = new THREE.Color('#2a0606'); } });
+    e.m = m; e.crewVis = undefined;
+  }
+  detachModel(e) {
+    if (!e.m) return;
+    this.scene.remove(e.m);
+    e.m.traverse((o) => { if (o.geometry && !o.userData.keepGeo) o.geometry.dispose(); if (o.material && o.material.map) o.material.map.dispose(); });
+    e.m = null; e.crew = [];
+  }
+  // 遠くの船は 1 つの船影の集まりとして描く（決戦では数百隻）
+  updateFleetLOD(full) {
+    const P = this.P;
+    const list = this.enemies.filter((e) => !e.sink && !e.far);
+    if (full) {
+      for (const e of list) e._d = Math.hypot(e.x - P.x, e.z - P.z);
+      list.sort((p, q) => p._d - q._d);
+      list.forEach((e, i) => { if (i < 24 && e._d < 900) this.attachModel(e); else if (e.m && (i >= 30 || e._d > 1100)) this.detachModel(e); });
+    }
+    if (!this.fleetMesh) {
+      this.fleetMesh = new THREE.InstancedMesh(makeFleetGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }), 1200);
+      this.fleetMesh.frustumCulled = false; this.fleetMesh.count = 0; this.scene.add(this.fleetMesh);
+      this.fm4 = new THREE.Matrix4(); this.fq = new THREE.Quaternion(); this.fs = new THREE.Vector3(); this.fp = new THREE.Vector3(); this.fc = new THREE.Color(); this.fup = new THREE.Vector3(0, 1, 0);
+    }
+    let n = 0;
+    for (const e of list) {
+      if (e.m || n >= 1200) continue;
+      this.fq.setFromAxisAngle(this.fup, Math.atan2(-Math.cos(e.h), -Math.sin(e.h)));
+      const s = SHIP_LEN[e.type] * ENEMY_SCALE;
+      this.fs.set(s, s, s); this.fp.set(e.x, 0.2 + Math.sin(this.t * 1.2 + e.wob) * 0.12, e.z);
+      this.fm4.compose(this.fp, this.fq, this.fs); this.fleetMesh.setMatrixAt(n, this.fm4);
+      this.fleetMesh.setColorAt(n, this.fc.set(e.ghost ? '#ff9a8a' : e.cap && e.cap.style === 'west' ? '#9a9a9a' : '#ffffff'));
+      n++;
+    }
+    this.fleetMesh.count = n;
+    this.fleetMesh.instanceMatrix.needsUpdate = true;
+    if (this.fleetMesh.instanceColor) this.fleetMesh.instanceColor.needsUpdate = true;
   }
   waterAt(x, z, margin = 2.5) { return hSea(x, z) < -margin; }
   trySpawn(dt) {
@@ -600,7 +646,7 @@ export class Sea {
         const x = cx + Math.cos(ang) * R, z = cz + Math.sin(ang) * R;
         if (!this.waterAt(x, z, 3) || Math.hypot(x - P.x, z - P.z) < 250) continue;
         const type = made === 0 ? (prog > 0.35 ? 'ataka' : 'seki') : 'kobaya';
-        const e = this.spawnEnemy(type, x, z, zone.faction, { cap, guard: { id: isl.id, name, cx, cz, R, ang }, hpMul: 1 + prog * 0.6, dmgMul: 1 + prog * 0.5,
+        const e = this.spawnEnemy(type, x, z, zone.faction, { cap, key: `g:${isl.id}:${made}`, guard: { id: isl.id, name, cx, cz, R, ang }, hpMul: 1 + prog * 0.6, dmgMul: 1 + prog * 0.5,
           name: L(`${cap.ja}の${type === 'kobaya' ? '見張り船' : '守りの船'}（${name}）`, `${cap.en}'s ${type === 'kobaya' ? 'picket' : 'guard ship'} (${name})`) });
         e.h = ang + Math.PI / 2;
         made++;
@@ -618,7 +664,7 @@ export class Sea {
     const fac = ZONES[ZONES.length - 1].faction;
     const [dx, dz] = ll2sea(DANNOURA.lon, DANNOURA.lat);
     const spots = [];
-    const heikeN = this.enemies.some((e) => e.pursue && !e.sink && e.crew.length) ? 8 : 11;
+    const heikeN = 11;
     for (let tries = 0; spots.length < heikeN && tries < 400; tries++) {
       const a = rand(0, TAU), d = rand(30, 420);
       const x = dx + Math.cos(a) * d, z = dz + Math.sin(a) * d;
@@ -630,23 +676,31 @@ export class Sea {
       if (i === 0) this.spawnEnemy('ataka', x, z, fac, { name: L('平知盛の御座船', 'Flagship of Taira no Tomomori'), boss: true, hpMul: 3.2, dmgMul: 1.6, final: true });
       else this.spawnEnemy(i % 3 === 0 ? 'ataka' : 'seki', x, z, fac, { name: i % 3 === 0 ? L('平家の大船', 'Heike war barge') : L('平家の怨霊船', 'Heike ghost ship'), hpMul: 1.6, dmgMul: 1.4, final: true });
     });
-    // 追ってきた海賊船も、生き残りがいれば全て壇ノ浦に集結する
-    // 多すぎると戦にならないので、近い順に 10 艘まで
-    const chasers = this.enemies.filter((e) => !e.final && !e.sink && e.pursue && e.crew.length).sort((p, q) => Math.hypot(p.x - dx, p.z - dz) - Math.hypot(q.x - dx, q.z - dz)).slice(0, 10);
-    for (const e of this.enemies) if (!e.final && !e.sink && !chasers.includes(e)) e.pursue = false;
-    for (const e of this.enemies) if (!e.final && !e.sink && !e.pursue) { this.scene.remove(e.m); e.sink = 99; }
+    // 航海で沈めなかった船は、生き残りがいれば全て巌流島のまわりに集結する
+    for (const e of this.enemies) if (!e.final && !e.sink) { this.detachModel(e); e.sink = 99; }
     this.enemies = this.enemies.filter((e) => e.sink !== 99);
-    for (const e of chasers) {
-      for (let tries = 0; tries < 80; tries++) {
-        const a = rand(0, TAU), d = rand(60, 650);
+    const taken = [];
+    const spot = (rMin, rMax) => {
+      for (let tries = 0; tries < 40; tries++) {
+        const a = rand(0, TAU), d = rand(rMin, rMax);
         const x = dx + Math.cos(a) * d, z = dz + Math.sin(a) * d;
-        if (!this.waterAt(x, z, 3)) continue;
-        e.x = x; e.z = z; break;
+        if (!this.waterAt(x, z, 3) || this.isletAt(x, z, 3)) continue;
+        if (taken.some((s) => Math.abs(s[0] - x) < 14 && Math.abs(s[1] - z) < 14)) continue;
+        taken.push([x, z]); return [x, z];
       }
-      e.final = true; e.far = false; e.m.visible = true; e.guard = null;
-    }
-    if (chasers.length) msg(L(`追ってきた ${chasers.length} 艘の海賊船も平家に加わった！`, `The ${chasers.length} pirate ships that hunted you have joined the Heike!`), 'warn', 6);
+      return null;
+    };
+    let n = 0;
+    const survivors = [...(G.fleet || new Map()).entries()].filter(([, s]) => s.crewN > 0);
+    survivors.forEach(([key, s], i) => {
+      const p = spot(120, 400 + Math.sqrt(i) * 60); if (!p) return;
+      const e = this.spawnEnemy(s.type, p[0], p[1], s.faction, { cap: s.cap, key, final: true, lite: true, pursue: false, station: { x: p[0], z: p[1] }, hpMul: 1.2, dmgMul: 1.2 });
+      e.crewN = s.crewN; e.hp = e.maxHp * s.crewN / 8; e.h = Math.atan2(dz - p[1], dx - p[0]) + Math.PI / 2;
+      n++;
+    });
+    if (n) msg(L(`航海で沈めなかった ${n} 艘の海賊船が、巌流島のまわりに集結している！`, `${n} pirate ships you left afloat have gathered around Ganryūjima!`), 'warn', 7);
     G.finalTotal = this.enemies.filter((e) => e.final).length;
+    if (G.finalTotal > 40) banner(L(`敵 ${G.finalTotal} 艘`, `${G.finalTotal} enemy ships`), L('瀬戸内の海賊が巌流島に集結した', 'The pirates of the Inland Sea gather at Ganryūjima'));
   }
 
   // ---------------- 毎フレーム ----------------
@@ -748,17 +802,20 @@ export class Sea {
     if (this.guardT <= 0) { this.guardT = 1; this.spawnGuards(); }
     for (const e of this.enemies) this.updateEnemy(e, dt);
     this.enemies = this.enemies.filter((e) => {
-      if (e.sink > 4.5) { this.scene.remove(e.m); return false; }
+      if (e.sink > 4.5) { this.detachModel(e); return false; }
       // 縄張りの守りの船は、離れれば島へ帰る（追手は消えない）
       if (!e.final && !e.pursue && (!e.guard || Math.hypot(e.guard.cx - P.x, e.guard.cz - P.z) > 1500)) {
         if (e.guard && this.G.guards.get(e.guard.id) === 'spawned') this.G.guards.delete(e.guard.id); // また近づけば出てくる
-        this.scene.remove(e.m); return false;
+        this.detachModel(e); return false;
       }
       return true;
     });
     this.updateBullets(dt);
     this.updateParts(dt);
     this.updateFallers(dt);
+    this.lodT = (this.lodT || 0) - dt;
+    const lodFull = this.lodT <= 0; if (lodFull) this.lodT = 0.3;
+    this.updateFleetLOD(lodFull);
     this.updateLoot(dt);
     // 進み具合と海域
     const [lon, lat] = sea2ll(P.x, P.z);
@@ -1131,7 +1188,10 @@ export class Sea {
   }
   dropCrew(e) {
     const left = e.hp <= 0 ? 0 : Math.ceil((e.hp / e.maxHp) * 8);
-    while (e.crew.length > left) {
+    while (e.crewN > left) {
+      e.crewN--;
+      if (e.ent) e.ent.crewN = e.crewN;
+      if (!e.crew.length) continue;
       const c = e.crew.splice((Math.random() * e.crew.length) | 0, 1)[0];
       const wp = new THREE.Vector3(); c.getWorldPosition(wp);
       c.parent.remove(c);
@@ -1151,6 +1211,7 @@ export class Sea {
   }
   sinkEnemy(e) {
     const G = this.G;
+    if (G.fleet) G.fleet.delete(e.key);
     e.sink = 0.001;
     G.sunk++;
     Sfx.sink(); Sfx.swell(0.5);
@@ -1180,6 +1241,7 @@ export class Sea {
     const P = this.P;
     if (e.sink) {
       e.sink += dt;
+      if (!e.m) this.attachModel(e);
       e.m.position.y = -e.sink * 2.2;
       e.m.rotation.z += dt * 0.25; e.m.rotation.x += dt * 0.1;
       if (Math.random() < 0.3) this.smoke(e.x + rand(-3, 3), 2, e.z + rand(-3, 3), 1, '#404040');
@@ -1196,15 +1258,19 @@ export class Sea {
         for (let tries = 0; tries < 20; tries++) {
           const x = e.x + rand(-150, 150), z = e.z + rand(-150, 150);
           if (this.waterAt(x, z, 3) && Math.hypot(P.x - x, P.z - z) > 600) {
-            e.x = x; e.z = z; e.far = false; e.m.visible = true; e.h = Math.atan2(P.z - z, P.x - x);
-            msg(L(`${e.name}が追いついてきた！（船員 ${e.crew.length} 人）`, `${e.name} has caught up! (${e.crew.length} crew)`), 'warn', 3);
+            e.x = x; e.z = z; e.far = false; e.h = Math.atan2(P.z - z, P.x - x);
+            msg(L(`${e.name}が追いついてきた！（船員 ${e.crewN} 人）`, `${e.name} has caught up! (${e.crewN} crew)`), 'warn', 3);
             break;
           }
         }
       }
       return;
     }
-    if (e.pursue && !e.final && d > 2000) { e.far = true; e.m.visible = false; return; }
+    if (e.pursue && !e.final && d > 2000) { e.far = true; this.detachModel(e); return; }
+    if (e.station && !e.pursue) {
+      if (d < 420 || e.hp < e.maxHp) { e.pursue = true; }
+      else { e.h += dt * 0.05; return; } // 持ち場で波に揺られて待つ
+    }
     let want;
     const gd = e.guard;
     if (gd && !e.pursue) {
@@ -1236,8 +1302,8 @@ export class Sea {
     const nx = e.x + (Math.cos(e.h) * wv + ec.x) * dt, nz = e.z + (Math.sin(e.h) * wv + ec.z) * dt;
     if (hSea(nx, nz) < -1.2 && !this.isletAt(nx, nz, 2)) { e.x = nx; e.z = nz; } else { e.v *= 0.3; e.h += 1.5 * dt; }
     // 船どうしの押し合い
-    for (const f of this.enemies) {
-      if (f === e || f.sink) continue;
+    if (d < 900) for (const f of this.enemies) {
+      if (f === e || f.sink || Math.abs(f.x - e.x) > 12) continue;
       const ox = f.x - e.x, oz = f.z - e.z, od = Math.hypot(ox, oz), rr = e.r + f.r + 1;
       if (od < rr && od > 0.01) { e.x -= ox / od * (rr - od) * 0.5; e.z -= oz / od * (rr - od) * 0.5; }
     }
@@ -1260,6 +1326,7 @@ export class Sea {
         }, i * 160);
       }
     }
+    if (!e.m) { this.addWake(e.x, e.z, e.h, e.v * 0.3, e.r); return; }
     e.m.position.set(e.x, 0.2 + Math.sin(this.t * 1.2 + e.wob) * 0.12, e.z);
     e.m.rotation.set(0, Math.atan2(-Math.cos(e.h), -Math.sin(e.h)), 0);
     e.m.rotateZ(Math.sin(this.t * 0.8 + e.wob) * 0.03);
@@ -1365,10 +1432,15 @@ export class Sea {
     this.floats.update(dt, cam);
     this.tags.begin();
     const P = this.P;
+    const tagged = [];
     for (const e of this.enemies) {
       if (e.sink || e.far) continue;
       const d = Math.hypot(e.x - P.x, e.z - P.z);
       if (d > 700 || (e.guard && !e.pursue && d > 350)) continue;
+      tagged.push([e.boss ? -1 : d, e]);
+    }
+    tagged.sort((p, q) => p[0] - q[0]);
+    for (const [, e] of tagged.slice(0, 8)) {
       this.tags.put(cam, e.x, 9 + e.r, e.z, e.name, e.hp / e.maxHp, e.boss ? 'boss' : e.ghost ? 'ghost' : '');
     }
     // 島の名前（上陸できる島がわかるように）
@@ -1404,7 +1476,7 @@ export class Sea {
     this.P.inv = 2;
     // 近くの敵を少し遠ざける
     // 上陸している間に近くの船は少し離れる（追手はあきらめない）
-    for (const e of this.enemies) if (!e.final && !e.sink && Math.hypot(e.x - this.P.x, e.z - this.P.z) < 400) { e.far = true; e.m.visible = false; e.x = this.P.x + 900; e.z = this.P.z; }
+    for (const e of this.enemies) if (!e.final && !e.sink && Math.hypot(e.x - this.P.x, e.z - this.P.z) < 400) { e.far = true; this.detachModel(e); e.x = this.P.x + 900; e.z = this.P.z; }
     this.spawnT = 6;
   }
 }

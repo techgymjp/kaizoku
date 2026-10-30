@@ -119,7 +119,7 @@ function newGame() {
   G = {
     state: 'play', t: 0, hp: 300, maxHp: 300, hull: 300, maxHull: 300, st: 100, maxSt: 100, stDelay: 0, lastHurt: -10,
     gold: 0, taken: new Set(), sunk: 0, kills: 0, bosses: 0, progress: 0, final: false, finalCleared: false, minX: 0,
-    islands, islets, islandNames, raided: [], guards: new Map(),
+    islands, islets, islandNames, raided: [], guards: new Map(), fleet: new Map(),
     land, board, die, onGoal,
   };
   return G;
@@ -335,7 +335,7 @@ function updateHUD(dt) {
   const fr = mode === 'sea' && sea && sea.front && !sea.front.e.sink ? sea.front : null;
   const tg = $('target');
   tg.classList.toggle('hidden', !fr);
-  if (fr) { const pc = Math.round(hitChance(fr.d) * 100); tg.innerHTML = L(`正面　<b>${fr.e.name}</b>　${Math.round(fr.d * 10)}m　命中率 <b class="p${pc >= 70 ? 'h' : pc >= 40 ? 'm' : 'l'}">${pc}%</b>　敵兵 ${fr.e.crew.length} 人`, `Ahead: <b>${fr.e.name}</b> ${Math.round(fr.d * 10)} m · hit <b class="p${pc >= 70 ? 'h' : pc >= 40 ? 'm' : 'l'}">${pc}%</b> · crew ${fr.e.crew.length}`); }
+  if (fr) { const pc = Math.round(hitChance(fr.d) * 100); tg.innerHTML = L(`正面　<b>${fr.e.name}</b>　${Math.round(fr.d * 10)}m　命中率 <b class="p${pc >= 70 ? 'h' : pc >= 40 ? 'm' : 'l'}">${pc}%</b>　敵兵 ${fr.e.crewN} 人`, `Ahead: <b>${fr.e.name}</b> ${Math.round(fr.d * 10)} m · hit <b class="p${pc >= 70 ? 'h' : pc >= 40 ? 'm' : 'l'}">${pc}%</b> · crew ${fr.e.crewN}`); }
   const ti = mode === 'sea' && sea ? sea.tideInfo() : null;
   $('hTide').textContent = ti ? L('潮：', 'Tide: ') + ti.text : '';
   $('hTide').classList.toggle('fast', !!(ti && ti.fast));

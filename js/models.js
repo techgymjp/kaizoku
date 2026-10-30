@@ -252,7 +252,7 @@ function makeGalleon(type, opt) {
   rig.push(0, deckY + tallest * 0.9, mastZ[0], 0, deckY + 1.6, L * 0.75);
   const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.Float32BufferAttribute(rig, 3));
   g.add(new THREE.LineSegments(rg, new THREE.LineBasicMaterial({ color: '#2a2018' })));
-  g.userData = { sail: sails[0], sails, flags, oars: [], len: L, width: W, deckY, inner: g,
+  g.userData = { sail: sails[0], sails, flags, oars: [], len: L, width: W, deckY, inner: g, bowsprit: bs,
     spots: [[-0.18, 0.36], [0.18, 0.36], [-0.36, 0.1], [-0.36, -0.12], [0.36, 0.1], [0.36, -0.12], [-0.2, -0.36], [0.2, -0.36]].map(([x, z]) => [x * W, z * L, z < -0.3 ? 2.4 : 0]) };
   const outer = new THREE.Group(); g.rotation.y = Math.PI; outer.add(g); outer.userData = g.userData;
   return outer;

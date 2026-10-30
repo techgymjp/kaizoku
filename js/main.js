@@ -177,9 +177,9 @@ function start() {
   sea.camInit = false;
   Sfx.bgm('sea');
   Sfx.horn(0.4);
-  banner(L('大坂湾より出航', 'Setting sail from Osaka Bay'), L('西へ——目指すは下関', 'Head west — for Shimonoseki'));
-  msg(L('帆を張れ！ 西へ進み、島で財宝を奪え。', 'Raise the sail! Sail west and plunder the islands.'), 'sys', 5);
-  setTimeout(() => msg(L('黄色い点の島には財宝がある。岸に寄せて E で上陸。', 'Islands marked gold hold treasure. Pull up to the shore and press E to land.'), 'sys', 6), 4000);
+  banner(L('姫路港より出航', 'Setting sail from Himeji'), L('追い風を受けて西へ——目指すは下関', 'A tailwind blows west — for Shimonoseki'));
+  msg(L('帆を張れ！ 風は西へ吹いている。潮の流れに気をつけろ。', 'Raise the sail! The wind blows west — mind the tidal currents.'), 'sys', 5);
+  setTimeout(() => msg(L('⚓の島には財宝がある。岸（港）に入れば自動で上陸する。', 'Islands marked ⚓ hold treasure. Sail into their shore to land automatically.'), 'sys', 6), 4000);
   updateHelp();
 }
 function restart(toTitle) {
@@ -310,6 +310,10 @@ function updateHUD(dt) {
   else if (sea && sea.zone) place = zoneName(sea.zone);
   if (G.final && !G.finalCleared) place = L(`壇ノ浦　残り ${G.finalLeft ?? '?'} 艘`, `Dan-no-ura: ${G.finalLeft ?? '?'} ships left`);
   $('hPlace').textContent = place;
+  const ti = mode === 'sea' && sea ? sea.tideInfo() : null;
+  $('hTide').textContent = ti ? L('潮：', 'Tide: ') + ti.text : '';
+  $('hTide').classList.toggle('fast', !!(ti && ti.fast));
+  $('hWind').textContent = ti ? L('風：', 'Wind: ') + ti.wind : '';
 }
 const ZONE_EN = { 大阪湾: 'Osaka Bay', 播磨灘: 'Harima Sea', 備讃瀬戸: 'Bisan Strait', 備後灘: 'Bingo Sea', 芸予諸島: 'Geiyo Islands', '安芸灘・広島湾': 'Aki Sea & Hiroshima Bay', '伊予灘・周防灘': 'Iyo & Suō Seas', 関門海峡: 'Kanmon Strait' };
 export function zoneName(z) { return getLang() === 'en' ? ZONE_EN[z.name] || z.name : z.name; }

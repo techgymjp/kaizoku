@@ -1,7 +1,23 @@
 // 瀬戸内の海賊王 — 地理・名所・橋・海域のデータ（座標は経度・緯度。高さ・長さは実際の m）
 
 // 出発（大阪湾）とゴール（下関・唐戸）
-export const START = { lon: 135.33, lat: 34.585, heading: Math.PI };
+// 出航は姫路港（飾磨）
+export const START = { lon: 134.655, lat: 34.752, heading: 2.3 };
+// 風：東から西へ吹く（西へ進むと速い）
+export const WIND = { dir: Math.PI, power: 0.3 };
+// 潮流：上げ潮は紀伊水道・豊後水道の両方から入り、鞆の浦の沖（東経 133.4 度付近）で出会う。下げ潮はその逆
+// 主な瀬戸の最大の速さ（ノット）と、上げ潮で流れる向き（方位。0 = 北、90 = 東）
+export const TIDE = { meetLon: 133.40, openKt: 1.5, period: 360 };
+export const STRAITS = [
+  { name: '明石海峡', en: 'Akashi Strait', lon: 135.02, lat: 34.615, r: 4500, flood: 245, kt: 7 },
+  { name: '鳴門海峡', en: 'Naruto Strait', lon: 134.652, lat: 34.239, r: 2500, flood: 330, kt: 10 },
+  { name: '備讃瀬戸', en: 'Bisan Strait', lon: 133.85, lat: 34.40, r: 9000, flood: 270, kt: 4 },
+  { name: '来島海峡', en: 'Kurushima Strait', lon: 133.02, lat: 34.12, r: 3500, flood: 10, kt: 10 },
+  { name: '音戸の瀬戸', en: 'Ondo Strait', lon: 132.537, lat: 34.196, r: 900, flood: 0, kt: 4 },
+  { name: '大畠瀬戸', en: 'Ōbatake Strait', lon: 132.18, lat: 33.95, r: 2000, flood: 60, kt: 7 },
+  { name: '釣島水道', en: 'Tsurushima Channel', lon: 132.62, lat: 33.90, r: 3500, flood: 30, kt: 4 },
+  { name: '関門海峡', en: 'Kanmon Strait', lon: 130.963, lat: 33.963, r: 3000, flood: 70, kt: 9 },
+];
 export const GOAL = { lon: 130.9440, lat: 33.9585, name: '下関・唐戸', en: 'Karato, Shimonoseki' };
 // 壇ノ浦の決戦が始まる経度
 export const FINAL_LON = 131.03;
@@ -65,7 +81,7 @@ export const ZONES = [
     captains: [P('九鬼嘉隆', 'Kuki Yoshitaka', 'jp'), P('キャプテン・キッド', 'Captain Kidd', 'west'), P('ヘンリー・エヴリー', 'Henry Every', 'west')] },
   { lon: 134.97, name: '播磨灘', en: 'Harima Sea', rate: 0.8, max: 3,
     faction: { name: '黒ひげ海賊団', en: 'Blackbeard’s crew', crest: 'skull', color: '#222222' },
-    captains: [P('黒ひげ', 'Blackbeard', 'west'), P('スティード・ボネット', 'Stede Bonnet', 'west'), P('チャールズ・ヴェイン', 'Charles Vane', 'west'), P('サミュエル・ベラミー', 'Samuel Bellamy', 'west')] },
+    captains: [P('黒ひげ', 'Blackbeard', 'west'), P('九鬼嘉隆', 'Kuki Yoshitaka', 'jp'), P('キャプテン・キッド', 'Captain Kidd', 'west'), P('スティード・ボネット', 'Stede Bonnet', 'west'), P('チャールズ・ヴェイン', 'Charles Vane', 'west'), P('サミュエル・ベラミー', 'Samuel Bellamy', 'west')] },
   { lon: 134.30, name: '備讃瀬戸', en: 'Bisan Strait', rate: 1.0, max: 3,
     faction: { name: 'バルバロッサ艦隊', en: 'Barbarossa’s fleet', crest: '☾', color: '#5a1a1a' },
     captains: [P('ハイレッディン・バルバロッサ', 'Hayreddin Barbarossa', 'west'), P('ウルージ・レイス', 'Oruç Reis', 'west'), P('ドラグート', 'Dragut', 'west')] },
@@ -139,13 +155,13 @@ export const ISLAND_NOTES = {
 };
 
 export const STORY = [
-  '慶長七年。関ヶ原で東西両軍を斬り抜けた{name}は、死んだことにして大坂を逃れた。',
+  '慶長七年。関ヶ原で東西両軍を斬り抜けた{name}は、死んだことにして姫路の港へ落ちのびた。',
   '手に入れたのは一艘の海賊船。黒い帆には髑髏と違い鎌。',
-  '目指すは西の果て、下関。瀬戸内の島々に眠る財宝を奪い、黒ひげ・バルバロッサ・村上武吉・鄭一嫂——古今東西の海賊どもを沈め、',
+  '追い風を受けて目指すは西の果て、下関。瀬戸内の島々に眠る財宝を奪い、黒ひげ・バルバロッサ・村上武吉・鄭一嫂——古今東西の海賊どもを沈め、',
   '壇ノ浦に巣くう平家の怨霊を討ち果たせば——その名は「瀬戸内の海賊王」。',
 ];
 export const STORY_EN = [
-  'Keichō 7 (1602). Having cut through both armies at Sekigahara, {name} faked a death and slipped out of Osaka.',
+  'Keichō 7 (1602). Having cut through both armies at Sekigahara, {name} faked a death and slipped away to the port of Himeji.',
   'All that is left is one pirate ship, its black sails marked with a skull and crossed sickles.',
   'Sail west to Shimonoseki. Plunder the island treasures and sink the pirates of every age and land — Blackbeard, Barbarossa, Murakami Takeyoshi, Ching Shih.',
   'Destroy the Heike ghosts haunting Dan-no-ura — and you will be the Pirate King of the Seto Inland Sea.',

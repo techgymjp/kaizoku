@@ -37,10 +37,12 @@
     <div><span data-en="Foes slain">斬った敵</span> <b id="hKill">0</b></div>
     <div class="esc"><span data-en="Ships hunting you">追ってくる船</span> <b id="hEsc">0</b></div>
     <div id="hPlace" class="place"></div>
-    <div class="route"><div id="routebar"></div><span data-en="Osaka → Shimonoseki">大坂 → 下関</span></div>
+    <div id="hTide" class="tide"></div>
+    <div id="hWind" class="wind"></div>
+    <div class="route"><div id="routebar"></div><span data-en="Himeji → Shimonoseki">姫路 → 下関</span></div>
     <div class="hud-btns"><button id="btnView" class="mini-btn" data-en="👁">視</button> <button id="btnPause" class="mini-btn" data-en="II">止</button></div>
   </div>
-  <canvas id="minimap" width="300" height="200"></canvas>
+  <canvas id="minimap" width="420" height="300"></canvas>
   <div id="landPrompt" class="hidden"></div>
   <div id="joyzone"></div>
   <div id="joybase"><div id="joyknob"></div></div>
@@ -62,7 +64,7 @@
 <!-- タイトル -->
 <div id="title" class="screen hidden">
   <div class="title-inner">
-    <div class="pre" data-en="Keichō 7 (1602) — from Osaka Bay to Dan-no-ura">慶長七年　大坂湾より壇ノ浦へ</div>
+    <div class="pre" data-en="Keichō 7 (1602) — from Himeji to Dan-no-ura">慶長七年　姫路港より壇ノ浦へ</div>
     <h1>瀬戸内の<br class="br-sp">海賊王</h1>
     <div class="title-sub" data-en="PIRATE KING OF THE SETO INLAND SEA"></div>
     <div id="story" class="story"></div>

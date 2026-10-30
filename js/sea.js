@@ -1,7 +1,7 @@
 // 海モード：瀬戸内海を海賊船で西へ。敵の海賊船を鉄砲で撃ち、島に上陸する
 import * as THREE from './vendor/three.module.min.js';
 import { DEM, SEA_K, VEX, hPx, hSea, ll2sea, sea2ll, ll2px, isLandPx, compAt, nearestLandPx } from './geo.js';
-import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, FINAL_LON, DANNOURA, shipName } from './data.js';
+import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, FINAL_LON, DANNOURA, shipName, WIND, TIDE, STRAITS } from './data.js';
 import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
@@ -16,7 +16,7 @@ const SHIP_SCALE = 0.66; // 自分の船（敵の倍）
 const ENEMY_SCALE = 0.42;
 const PR = 6; // 自分の船の当たりの大きさ
 const BRIDGE_V = 0.42; // 橋の高さの倍率（大きな船がくぐれるように）
-const BACK = 900; // 東へ戻れる距離（単位。1 単位 = 10m）
+const KT = 0.6; // 潮の速さ 1 ノットをゲームの何単位/秒にするか（船の速さに合わせて強調）
 const CH = 64; // 地形のかたまり（画素）
 
 // ---- 地形の色 ----
@@ -85,14 +85,13 @@ export class Sea {
       const hero = makeWarrior('hero'); hero.position.set(0, ud.deckY + 2.4, -ud.len * 0.36); hero.scale.setScalar(1.15); ud.inner.add(hero); this.hero = hero;
       ud.spots.slice(2, 8).forEach(([x, z, y = 0], i) => { const c = makeCrewman(i < 2 ? 'gun' : 'spear', 'west', '#b0141a'); c.position.set(x, ud.deckY + y, z); ud.inner.add(c); });
     }
-    const [sx, sz] = ll2sea(START.lon, START.lat);
+    let [sx, sz] = ll2sea(START.lon, START.lat);
+    for (let r = 0; r < 80 && (hSea(sx, sz) > -4 || hSea(sx + 8, sz) > -3 || hSea(sx, sz + 8) > -3); r++) { sx += rand(-6, 6); sz += 5; }
     this.P = { x: sx, z: sz, h: START.heading, v: 0, sail: 2, roll: 0, pitch: 0, cd: 0, cdBomb: 0, inv: 0 };
     this.G.minX = sx;
     // 戻れない線（霧の壁）
-    const wm = new THREE.MeshBasicMaterial({ color: '#e8eef0', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false });
-    this.wall = new THREE.Mesh(new THREE.PlaneGeometry(1, 60), wm);
-    this.wall.rotation.y = Math.PI / 2; this.wall.scale.x = 1600;
-    S.add(this.wall);
+    this.straits = STRAITS.map((s) => { const [x, z] = ll2sea(s.lon, s.lat); const b = (s.flood * Math.PI) / 180; return { ...s, x, z, r: s.r / 10, fx: Math.sin(b), fz: -Math.cos(b) }; });
+    [this.meetX] = ll2sea(TIDE.meetLon, 34);
     // 狙いの印
     this.aimMark = new THREE.Mesh(new THREE.RingGeometry(2.2, 3, 24), new THREE.MeshBasicMaterial({ color: '#ffdc78', transparent: true, opacity: 0.8, depthWrite: false }));
     this.aimMark.rotation.x = -Math.PI / 2; S.add(this.aimMark);
@@ -395,19 +394,19 @@ export class Sea {
   // ---- ミニマップ ----
   buildMinimap() {
     const c = document.createElement('canvas');
-    const s = 4; c.width = DEM.w / s; c.height = DEM.h / s;
+    const s = 2; c.width = DEM.w / s; c.height = DEM.h / s; this.miniS = s;
     const g = c.getContext('2d');
     const im = g.createImageData(c.width, c.height);
     for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
       const h = DEM.data[y * s * DEM.w + x * s];
       const o = (y * c.width + x) * 4;
-      if (h <= 0) { im.data[o] = 28; im.data[o + 1] = 58; im.data[o + 2] = 86; }
-      else { const k = Math.min(1, h / 600); im.data[o] = 120 - k * 50; im.data[o + 1] = 130 - k * 40; im.data[o + 2] = 80 - k * 30; }
+      if (h <= 0) { im.data[o] = 30; im.data[o + 1] = 92; im.data[o + 2] = 140; }
+      else { const k = Math.min(1, h / 500); im.data[o] = 190 - k * 90; im.data[o + 1] = 196 - k * 70; im.data[o + 2] = 140 - k * 70; }
       im.data[o + 3] = 255;
     }
     g.putImageData(im, 0, 0);
-    g.fillStyle = 'rgb(120,130,80)';
-    for (const o of this.G.islets || []) { const [x, z] = ll2sea(o[0], o[1]); g.fillRect(x / SEA_K / s - 0.5, z / SEA_K / s - 0.5, 1.2, 1.2); }
+    g.fillStyle = 'rgb(190,196,140)';
+    for (const o of this.G.islets || []) { const [x, z] = ll2sea(o[0], o[1]); g.fillRect(x / SEA_K / s - 0.7, z / SEA_K / s - 0.7, 1.6, 1.6); }
     this.miniBg = c;
   }
   drawMinimap() {
@@ -419,20 +418,21 @@ export class Sea {
     const px = P.x / SEA_K, py = P.z / SEA_K;
     const sx = clamp(px - span / 2, 0, DEM.w - span), sy = clamp(py - span * H / W / 2, 0, DEM.h - span * H / W);
     const sh = span * H / W;
-    g.drawImage(this.miniBg, sx / 4, sy / 4, span / 4, sh / 4, 0, 0, W, H);
+    const ms = this.miniS;
+    g.imageSmoothingEnabled = true;
+    g.drawImage(this.miniBg, sx / ms, sy / ms, span / ms, sh / ms, 0, 0, W, H);
     const k = W / span;
     const tx = (x) => (x / SEA_K - sx) * k, ty = (z) => (z / SEA_K - sy) * k;
-    // 戻れない線
-    g.fillStyle = 'rgba(230,235,240,0.35)';
-    const lx = tx(this.G.minX + BACK);
-    if (lx < W) g.fillRect(lx, 0, W - lx, H);
     // 島（財宝の有無）
     for (const isl of this.G.islands) {
       const x = (isl.px - sx) * k, y = (isl.py - sy) * k;
       if (x < -4 || y < -4 || x > W + 4 || y > H + 4) continue;
       const taken = this.G.taken.has(isl.id);
-      g.fillStyle = taken ? 'rgba(160,160,160,0.8)' : '#ffd24a';
-      g.beginPath(); g.arc(x, y, taken ? 3 : 4.5, 0, TAU); g.fill();
+      g.fillStyle = taken ? 'rgba(160,160,160,0.9)' : '#ffd24a';
+      g.strokeStyle = '#1a1a1a'; g.lineWidth = 1.5;
+      g.beginPath(); g.arc(x, y, taken ? 3.5 : 5, 0, TAU); g.fill(); g.stroke();
+      g.font = '700 12px "Shippori Mincho", serif'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.75)'; g.fillStyle = taken ? '#ccc' : '#fff';
+      const nm = islandName(isl); g.strokeText(nm, x + 7, y + 4); g.fillText(nm, x + 7, y + 4);
     }
     for (const e of this.enemies) { if (e.sink || e.far) continue; g.fillStyle = e.boss ? '#ff3a3a' : e.guard && !e.pursue ? '#ffb0a0' : '#ff6a4a'; g.fillRect(tx(e.x) - 3, ty(e.z) - 3, 6, 6); }
     // ゴール
@@ -441,8 +441,10 @@ export class Sea {
     if (gx > 0 && gx < W && gy > 0 && gy < H) { g.fillText(L('★下関', '★Shimonoseki'), gx - 6, gy + 4); }
     // 自船
     g.save(); g.translate(tx(P.x), ty(P.z)); g.rotate(P.h);
-    g.fillStyle = '#ff4a3a'; g.beginPath(); g.moveTo(7, 0); g.lineTo(-5, -4); g.lineTo(-3, 0); g.lineTo(-5, 4); g.closePath(); g.fill();
+    g.fillStyle = '#ff3a2a'; g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(11, 0); g.lineTo(-7, -6); g.lineTo(-3, 0); g.lineTo(-7, 6); g.closePath(); g.fill(); g.stroke();
     g.restore();
+    g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(W - 26, 4, 22, 22); g.fillStyle = '#fff'; g.font = '700 13px serif'; g.fillText(L('北', 'N'), W - 21, 20);
+    const km10 = 1000 / SEA_K * k; g.fillStyle = '#fff'; g.fillRect(8, H - 10, km10, 3); g.font = '11px serif'; g.fillText('10km', 8, H - 14);
     // 全体の進み具合
     const all = $('routebar');
     if (all) {
@@ -601,7 +603,8 @@ export class Sea {
     const dash = (I.down('Space') || I.down('ShiftLeft') || I.down('ShiftRight') || I.tDash) && G.st > 3 && P.sail > 0;
     if (dash) { G.st = Math.max(0, G.st - 22 * dt); G.stDelay = 0.6; if (Math.random() < dt * 4) Sfx.oar(); }
     else { if (G.stDelay > 0) G.stDelay -= dt; else G.st = Math.min(G.maxSt, G.st + 16 * dt); }
-    const target = [-6, 0, 13, 22, 31][P.sail + 1] + (dash ? 15 : 0);
+    const sailV = [-6, 0, 13, 22, 31][P.sail + 1];
+    const target = (sailV > 0 ? sailV * this.windMul(P.h) : sailV) + (dash ? 15 : 0);
     P.v += (target - P.v) * (1 - Math.exp(-dt * (target > P.v ? 0.7 : 1.2)));
     const tr = turn * (0.55 + Math.min(0.5, Math.abs(P.v) / 40));
     P.h += tr * dt;
@@ -629,12 +632,11 @@ export class Sea {
       const dx = P.x - c.x, dz = P.z - c.z, d = Math.hypot(dx, dz);
       if (d < c.r + PR * 0.6) { P.x = c.x + dx / d * (c.r + PR * 0.6); P.z = c.z + dz / d * (c.r + PR * 0.6); P.v *= 0.5; }
     }
-    // 戻れない
+    // 潮に流される
+    const cur = this.current(P.x, P.z);
+    if (hSea(P.x + cur.x * dt * 3, P.z + cur.z * dt * 3) < -1.2) { P.x += cur.x * dt; P.z += cur.z * dt; }
+    this.cur = cur;
     if (P.x < G.minX) G.minX = P.x;
-    const limit = G.minX + BACK;
-    if (P.x > limit) { P.x = limit; if (Math.cos(P.h) > 0) P.v *= 0.9; if (this.t - (this.backMsg || -9) > 4) { msg(L('後戻りはできぬ。西へ進め！', 'There is no turning back. Sail west!'), 'warn', 3); this.backMsg = this.t; } }
-    this.wall.position.set(limit, 25, P.z);
-    this.wall.material.opacity = clamp(1 - (limit - P.x) / 250, 0, 0.55);
     P.x = clamp(P.x, 30, DEM.w * SEA_K - 30); P.z = clamp(P.z, 30, DEM.h * SEA_K - 30);
     if (P.inv > 0) P.inv -= dt;
 
@@ -655,7 +657,8 @@ export class Sea {
     if (this.view === 'bow') {
       const gu = this.gun.userData;
       gu.kick = Math.max(0, (gu.kick || 0) - dt * 6);
-      this.gun.position.set(0.26, -0.3 + gu.kick * 0.03, -0.6 + gu.kick * 0.1);
+      const asp = Math.min(1, this.camera.aspect * 1.1);
+      this.gun.position.set(0.26 * asp, -0.3 + gu.kick * 0.03, -0.6 - (1 - asp) * 0.3 + gu.kick * 0.1);
       this.gun.lookAt(aim.x, 1.5, aim.z);
       gu.match.material.color.setHSL(0.07, 1, 0.5 + Math.sin(this.t * 20) * 0.15);
     }
@@ -736,6 +739,43 @@ export class Sea {
     this.waterU.time.value = this.t;
   }
   camHeading() { return this.P.h + this.camYaw; }
+  // 追い風なら速く、向かい風なら遅く
+  windMul(h) { return 1 + WIND.power * Math.cos(h - WIND.dir); }
+  // その場所の潮の流れ（単位/秒）。phase > 0 が上げ潮
+  tidePhase() { return Math.sin((this.t / TIDE.period) * Math.PI * 2 + 0.8); }
+  current(x, z) {
+    const ph = this.tidePhase();
+    // 沖：上げ潮は東の海で西へ、西の海で東へ（鞆の浦の沖で出会う）。少しずつ左右に振れる
+    const toMeet = x > this.meetX ? Math.PI : 0;
+    const near = Math.min(1, Math.abs(x - this.meetX) / 800);
+    const wob = Math.sin(this.t * 0.05 + x * 0.0007) * 0.9 + Math.sin(this.t * 0.031 + z * 0.0011) * 0.5;
+    const a = toMeet + wob;
+    let cx = Math.cos(a) * TIDE.openKt * KT * near, cz = Math.sin(a) * TIDE.openKt * KT * near;
+    // 瀬戸では速く、瀬戸の向きに流れる
+    for (const s of this.straits) {
+      const d = Math.hypot(x - s.x, z - s.z);
+      if (d > s.r) continue;
+      const w = 1 - d / s.r;
+      cx = cx * (1 - w) + s.fx * s.kt * KT * w; cz = cz * (1 - w) + s.fz * s.kt * KT * w;
+    }
+    return { x: cx * ph, z: cz * ph, ph };
+  }
+  // 画面に出す潮と風
+  tideInfo() {
+    const P = this.P, c = this.cur || { x: 0, z: 0, ph: 0 };
+    const sp = Math.hypot(c.x, c.z) / KT;
+    let strait = null;
+    for (const s of this.straits) if (Math.hypot(P.x - s.x, P.z - s.z) < s.r * 0.8) strait = s;
+    const state = Math.abs(c.ph) < 0.2 ? L('潮止まり', 'Slack tide') : c.ph > 0 ? L('上げ潮', 'Flood tide') : L('下げ潮', 'Ebb tide');
+    let side = '';
+    if (sp > 0.3) {
+      const rel = angDiff(Math.atan2(c.z, c.x), P.h);
+      side = Math.abs(rel) < 0.6 ? L('↑ 追い潮', '↑ with you') : Math.abs(rel) > 2.5 ? L('↓ 向かい潮', '↓ against you') : rel > 0 ? L('→ 右へ流される', '→ pushing right') : L('← 左へ流される', '← pushing left');
+    }
+    const wrel = Math.cos(P.h - WIND.dir);
+    const wind = wrel > 0.5 ? L('追い風', 'tailwind') : wrel < -0.5 ? L('向かい風', 'headwind') : L('横風', 'crosswind');
+    return { text: `${strait ? L(strait.name, strait.en) + ' ' : ''}${state} ${sp.toFixed(1)}${L('ノット', ' kt')} ${side}`, wind: L('東の風（西へ吹く）・', 'East wind (blowing west) · ') + wind, fast: sp > 4 };
+  }
   updateCamera(dt, I) {
     const P = this.P;
     if (I.pressed('KeyV') || I.toggleView) { I.toggleView = false; this.view = this.view === 'bow' ? 'chase' : 'bow'; this.camInit = false; }
@@ -744,6 +784,7 @@ export class Sea {
     if (I.lookDX) { this.camYaw += I.lookDX * 0.006; I.lookDX = 0; }
     const cam = this.camera;
     this.gun.visible = this.view === 'bow';
+    if (this.ship.userData.bowsprit) this.ship.userData.bowsprit.visible = this.view !== 'bow'; // 目の前をふさがないように
     if (this.view === 'bow') {
       this.camYaw = clamp(this.camYaw, -2.4, 2.4);
       if (!I.down('KeyQ') && !I.down('KeyE') && !I.looking) this.camYaw *= Math.exp(-dt * 0.15);
@@ -1008,7 +1049,8 @@ export class Sea {
     e.h += clamp(da, -1, 1) * 0.9 * dt;
     const tv = e.speed * (d < 100 ? 0.65 : 1) * (gd && !e.pursue ? 0.5 : 1);
     e.v += (tv - e.v) * (1 - Math.exp(-dt * 0.8));
-    const nx = e.x + Math.cos(e.h) * e.v * dt, nz = e.z + Math.sin(e.h) * e.v * dt;
+    const ec = this.current(e.x, e.z), wv = e.v * this.windMul(e.h);
+    const nx = e.x + (Math.cos(e.h) * wv + ec.x) * dt, nz = e.z + (Math.sin(e.h) * wv + ec.z) * dt;
     if (hSea(nx, nz) < -1.2 && !this.isletAt(nx, nz, 2)) { e.x = nx; e.z = nz; } else { e.v *= 0.3; e.h += 1.5 * dt; }
     // 船どうしの押し合い
     for (const f of this.enemies) {
@@ -1090,6 +1132,7 @@ export class Sea {
     const P = this.P, G = this.G;
     for (const l of this.loot) {
       l.t += dt;
+      const lc = this.current(l.x, l.z); l.x += lc.x * dt; l.z += lc.z * dt; l.g.position.x = l.x; l.g.position.z = l.z;
       l.g.position.y = 0.3 + Math.sin(l.t * 2) * 0.2; l.g.rotation.y += dt * 0.5;
       if (Math.hypot(l.x - P.x, l.z - P.z) < PR + 4) {
         l.taken = true;
@@ -1154,15 +1197,16 @@ export class Sea {
       if (d < 2400) near.push([d, isl, cx, cz]);
     }
     near.sort((p, q) => p[0] - q[0]);
-    for (const [d, isl, cx, cz] of near.slice(0, 10)) {
+    const narrow = innerWidth < 700;
+    for (const [d, isl, cx, cz] of near.slice(0, narrow ? 4 : 8)) {
       const taken = this.G.taken.has(isl.id);
-      const label = islandName(isl) + (taken ? L('　財宝は奪った', ' · raided') : L('　⚓上陸できる・財宝あり', ' · ⚓ land here · treasure'));
+      const label = islandName(isl) + (taken ? L('　財宝は奪った', ' · raided') : narrow ? ' ⚓' : L('　⚓上陸できる・財宝あり', ' · ⚓ land here · treasure'));
       this.tags.put(cam, cx, (isl.maxH || 30) * VEX + 6, cz, label, null, taken ? 'isl done' : 'isl');
     }
     const un = [];
     for (const u of this.uninhabited || []) { const d = Math.hypot(u.x - P.x, u.z - P.z); if (d < 1100) un.push([d, u]); }
     un.sort((p, q) => p[0] - q[0]);
-    for (const [, u] of un.slice(0, 8)) this.tags.put(cam, u.x, u.h * VEX + 4, u.z, L(u.name + '（無人島）', romaji(u.kana || u.name) + ' (uninhabited)'), null, 'isl none');
+    for (const [, u] of un.slice(0, narrow ? 2 : 6)) this.tags.put(cam, u.x, u.h * VEX + 4, u.z, L(u.name + '（無人島）', romaji(u.kana || u.name) + ' (uninhabited)'), null, 'isl none');
     this.tags.end();
     this.miniT = (this.miniT || 0) - dt;
     if (this.miniT <= 0) { this.miniT = 0.2; this.drawMinimap(); }

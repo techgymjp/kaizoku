@@ -16,10 +16,20 @@ const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if
 const hypot = Math.hypot;
 // カメラと主人公の間にある家や木を消す（手前だけ穴を開ける）
 const CUT = { value: 0 };
+const PPOS = { value: new THREE.Vector3() };
+// カメラの手前は消し、主人公のまわりの建物や木は網目に透かして、敵が隠れないようにする
 function cutaway(m) {
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.cutR = CUT;
-    sh.fragmentShader = 'uniform float cutR;\n' + sh.fragmentShader.replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n  if (length(vViewPosition) < cutR) discard;');
+    sh.uniforms.cutR = CUT; sh.uniforms.ppos = PPOS;
+    sh.vertexShader = 'varying vec3 vWPos;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+  #ifdef USE_INSTANCING
+    vWPos = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+  #else
+    vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+  #endif`);
+    sh.fragmentShader = 'uniform float cutR;\nuniform vec3 ppos;\nvarying vec3 vWPos;\n' + sh.fragmentShader.replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+  if (length(vViewPosition) < cutR) discard;
+  if (distance(vWPos.xz, ppos.xz) < 22.0 && vWPos.y > ppos.y + 0.6 && mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0) < 1.0) discard;`);
   };
   return m;
 }
@@ -302,7 +312,7 @@ export class Island {
     this.camYaw = this.P.face + Math.PI; // 背中側から
     this.camYaw = Math.atan2(dz, dx); // 船の方（背中側）にカメラ
     this.P.heading = this.P.face;
-    this.camDist = 9;
+    this.camDist = 12;
     // 敵と財宝
     this.enemies = []; this.bullets = []; this.parts = []; this.pickups = []; this.critters = [];
     this.placeTreasure(cx0, cz0);
@@ -620,7 +630,7 @@ export class Island {
   addEnemy(type, x, z, color, group, info) {
     let m;
     if (type === 'gen') m = makeWarrior(this.G.final ? 'ghost' : info && info.west ? 'captain' : 'boss', '#2a2a40');
-    else m = makeCrewman(type === 'gun' ? 'gun' : 'spear', this.G.final ? 'heike' : 'jp', color); // 足軽は軽いモデルで大勢出す
+    else { m = makeCrewman(type === 'gun' ? 'gun' : 'spear', this.G.final ? 'heike' : 'jp', color); m.userData.s = 1.15; } // 足軽は軽いモデルで大勢出す
     this.scene.add(m);
     const prog = this.G.progress || 0;
     const e = { type, x, z, hx: x, hz: z, alive: true, state: 'hold', group, face: rand(0, TAU), m, atkT: 0, cd: rand(0.5, 1.5), aimT: 0, aimA: 0, flash: 0, kvx: 0, kvz: 0, gait: rand(0, 6), trampleCd: 0, routT: 0, charge: 0, chargeT: 0, chargeCd: rand(2, 4), chargeA: 0, wobble: rand(0, TAU) };
@@ -968,7 +978,7 @@ export class Island {
       m.position.y += moving ? Math.abs(Math.sin(e.gait)) * 0.12 : 0;
       m.rotation.z = moving ? Math.sin(e.gait) * 0.08 : 0;
       m.rotation.x = atkPose ? -0.25 : 0;
-      m.scale.setScalar(e.flash > 0 ? 1.12 : 1);
+      m.scale.setScalar((m.userData.s || 1) * (e.flash > 0 ? 1.12 : 1));
     }
   }
   updateGeneral(e, dt, d, ux, uz, sm, move) {
@@ -1108,7 +1118,7 @@ export class Island {
     const want = (P.heading ?? P.face) + Math.PI;
     this.camYaw += angDiff(want, this.camYaw) * (1 - Math.exp(-dt * 5));
     const cx = P.x + Math.cos(this.camYaw) * this.camDist, cz = P.z + Math.sin(this.camYaw) * this.camDist;
-    let cy = P.y + this.camDist * 0.5;
+    let cy = P.y + this.camDist * 0.75;
     cy = Math.max(cy, this.hAt(cx, cz) + 2, (this.hAt((cx + P.x) / 2, (cz + P.z) / 2) + 1.5));
     const cam = this.camera, k = 1 - Math.exp(-dt * 6);
     if (!this.camInit) { cam.position.set(cx, cy, cz); this.camInit = true; }
@@ -1117,6 +1127,7 @@ export class Island {
     const hd = P.heading ?? P.face;
     cam.lookAt(P.x + Math.cos(hd) * 6, P.y + 1.6, P.z + Math.sin(hd) * 6);
     CUT.value = hypot(cam.position.x - P.x, cam.position.y - P.y - 1, cam.position.z - P.z) * 0.8;
+    PPOS.value.set(P.x, P.y, P.z);
   }
 
   render(dt) {
@@ -1124,6 +1135,11 @@ export class Island {
     this.floats.update(dt, this.camera);
     this.tags.begin();
     for (const e of this.enemies) if (e.alive && e.type === 'gen') this.tags.put(this.camera, e.x, this.hAt(e.x, e.z) + 3.4, e.z, e.name, e.hp / e.maxHp, 'boss');
+    // 攻めてくる足軽の頭上に小さな印（近い 14 人）
+    const P = this.P, near = [];
+    for (const e of this.enemies) if (e.alive && e.type !== 'gen' && e.state === 'chase') { const d = hypot(e.x - P.x, e.z - P.z); if (d < 60) near.push([d, e]); }
+    near.sort((p, q) => p[0] - q[0]);
+    for (const [, e] of near.slice(0, 14)) this.tags.put(this.camera, e.x, this.hAt(e.x, e.z) + 2.4, e.z, e.type === 'gun' ? '▼鉄砲' : '▼', null, 'mk' + (e.type === 'gun' ? ' gun' : ''));
     const T = this.treasure;
     if (!T.taken) this.tags.put(this.camera, T.x, this.hAt(T.x, T.z) + 3, T.z, L(`財宝（${T.place}）`, `Treasure (${T.place}) `) + `${Math.round(hypot(T.x - this.P.x, T.z - this.P.z))}m`, null, 'gold');
     else this.tags.put(this.camera, this.ship.x, 9, this.ship.z, L('船 ', 'Ship ') + `${Math.round(hypot(this.ship.x - this.P.x, this.ship.z - this.P.z))}m`, null, 'ship');

@@ -308,3 +308,5 @@ body.touch #minimap { width: min(44vw, 300px); height: min(31.4vw, 214px); left:
 .hud-right #harborNav { text-align: left; }
 @media (max-width: 600px) { #msgs { top: 240px; width: calc(100% - 20px); } }
 @media (max-width: 600px) { .hud-left { width: 38vw; } }
+.tag.mk span { background: none; border: none; color: #ff4a3a; font-size: 14px; padding: 0; text-shadow: 0 0 3px #000, 0 0 2px #000; }
+.tag.mk.gun span { color: #ffb040; font-size: 11px; }

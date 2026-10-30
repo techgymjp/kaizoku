@@ -871,10 +871,10 @@ export class Sea {
         const dx = e.x - P.x, dz = e.z - P.z, d = Math.hypot(dx, dz);
         if (d > 330 || d < 8) continue;
         const ad = Math.abs(angDiff(Math.atan2(dz, dx), P.h));
-        if (ad > 0.09 + Math.atan(e.r / d)) continue;
+        if (ad > 0.02 + Math.atan(e.r / d)) continue;
         if (d < bs) { bs = d; best = e; }
       }
-      if (best) return { x: best.x, z: best.z, lock: best };
+      this.front = best ? { e: best, d: bs } : null; // 正面にとらえた敵（画面に出す）
       return { x: P.x + Math.cos(P.h) * 260, z: P.z + Math.sin(P.h) * 260 };
     }
     if (this.view === 'bow') {
@@ -941,9 +941,10 @@ export class Sea {
       Sfx.gun(0.7); Sfx.cannon(0.25);
       this.gunners.forEach((g, i) => {
         const mz = g.mz.getWorldPosition(new THREE.Vector3());
-        const ta = Math.atan2(aim.z - mz.z, aim.x - mz.x) + rand(-0.025, 0.025);
+        const ta = P.h + rand(-0.022, 0.022); // 船首に据えた鉄砲：船の向きにまっすぐ
         const sp = 150;
         const b = this.addBullet(mz.x, mz.y, mz.z, Math.cos(ta) * sp, 0.8, Math.sin(ta) * sp, 'p', 14, 2.3);
+        b.ox = P.x; b.oz = P.z;
         b.g = 1.2;
         this.muzzleFire(mz, ta);
       });
@@ -1020,7 +1021,14 @@ export class Sea {
       if (b.from === 'p') {
         for (const e of this.enemies) {
           if (e.sink) continue;
-          if (Math.hypot(e.x - b.x, e.z - b.z) < e.r + 0.8 && b.y < 9) { b.life = 0; this.hurtEnemy(e, b.dmg); break; }
+          if (Math.hypot(e.x - b.x, e.z - b.z) < e.r + 0.8 && b.y < 9) {
+            b.life = 0;
+            if (b.ox === undefined) { this.hurtEnemy(e, b.dmg); break; }
+            const d = Math.hypot(e.x - b.ox, e.z - b.oz);
+            if (Math.random() < hitChance(d)) { this.floats.add(e.x + rand(-2, 2), 7, e.z, L('命中！', 'Hit!'), '#ffe070'); this.hurtEnemy(e, e.maxHp / 8 + 0.01); }
+            else { this.floats.add(e.x + rand(-2, 2), 6, e.z, L('かすった', 'Graze'), '#aab'); this.spark(b.x, 3, b.z); Sfx.clang(); }
+            break;
+          }
         }
       } else if (Math.hypot(P.x - b.x, P.z - b.z) < PR) {
         b.life = 0; this.hurtHull(b.dmg, b.x, b.z);
@@ -1032,7 +1040,7 @@ export class Sea {
   hurtEnemy(e, dmg, big) {
     dmg *= rand(0.9, 1.1);
     e.hp -= dmg; e.flash = 0.12;
-    this.floats.add(e.x, 6, e.z, Math.round(dmg), big ? '#ffb040' : '#ffffff', big);
+    if (big) this.floats.add(e.x, 6, e.z, Math.round(dmg), '#ffb040', big);
     Sfx.crack(big ? 0.5 : 0.25);
     this.spark(e.x, 3, e.z);
     this.dropCrew(e);
@@ -1318,6 +1326,8 @@ export class Sea {
   }
 }
 
+// 距離（単位。1 = 10m）ごとの、当たった弾が敵兵を倒す確率
+export function hitChance(d) { return clamp(1.1 - d / 300, 0.2, 0.98); }
 function dtWake(v) { return Math.min(0.9, Math.abs(v) / 40); }
 function makeSmokeTex() {
   const c = document.createElement('canvas'); c.width = c.height = 64;

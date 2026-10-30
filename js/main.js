@@ -1,7 +1,7 @@
 // 瀬戸内の海賊王 — 起動・入力・場面の切り替え・HUD
 import * as THREE from './vendor/three.module.min.js';
 import { loadDEM, DEM } from './geo.js';
-import { Sea } from './sea.js';
+import { Sea, hitChance } from './sea.js';
 import { Island } from './island.js';
 import { Sfx } from './audio.js';
 import { $, msg, banner } from './ui.js';
@@ -318,6 +318,10 @@ function updateHUD(dt) {
   else if (sea && sea.zone) place = zoneName(sea.zone);
   if (G.final && !G.finalCleared) place = L(`壇ノ浦　残り ${G.finalLeft ?? '?'} 艘`, `Dan-no-ura: ${G.finalLeft ?? '?'} ships left`);
   $('hPlace').textContent = place;
+  const fr = mode === 'sea' && sea && sea.front && !sea.front.e.sink ? sea.front : null;
+  const tg = $('target');
+  tg.classList.toggle('hidden', !fr);
+  if (fr) { const pc = Math.round(hitChance(fr.d) * 100); tg.innerHTML = L(`正面　<b>${fr.e.name}</b>　${Math.round(fr.d * 10)}m　命中率 <b class="p${pc >= 70 ? 'h' : pc >= 40 ? 'm' : 'l'}">${pc}%</b>　敵兵 ${fr.e.crew.length} 人`, `Ahead: <b>${fr.e.name}</b> ${Math.round(fr.d * 10)} m · hit <b class="p${pc >= 70 ? 'h' : pc >= 40 ? 'm' : 'l'}">${pc}%</b> · crew ${fr.e.crew.length}`); }
   const ti = mode === 'sea' && sea ? sea.tideInfo() : null;
   $('hTide').textContent = ti ? L('潮：', 'Tide: ') + ti.text : '';
   $('hTide').classList.toggle('fast', !!(ti && ti.fast));

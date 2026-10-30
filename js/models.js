@@ -227,7 +227,7 @@ function makeGalleon(type, opt) {
     const tiers = [[0.3, 0.98, 0.34], [0.62, 0.78, 0.26], [0.86, 0.56, 0.16]];
     tiers.forEach(([y0, wf, hf], ti) => {
       const sw = W * 1.7 * wf, sh = h * hf * 0.92;
-      const yard = cyl(0.1, 0.1, sw * 1.08, '#4a3020', 5, g); yard.rotation.z = Math.PI / 2; yard.position.set(0, deckY + h * y0 + sh / 2, z + 0.3);
+      if (!player) { const yard = cyl(0.1, 0.1, sw * 1.08, '#4a3020', 5, g); yard.rotation.z = Math.PI / 2; yard.position.set(0, deckY + h * y0 + sh / 2, z + 0.3); }
       const geo = new THREE.PlaneGeometry(sw, sh, 6, 3);
       const p = geo.attributes.position;
       for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); p.setZ(i, (1 - (x / (sw / 2)) ** 2) * (0.7 + 0.3 * (1 - Math.abs(y) / (sh / 2))) * sw * 0.13); }
@@ -235,7 +235,7 @@ function makeGalleon(type, opt) {
       const sail = new THREE.Mesh(geo, main && ti === 0 ? sailM : plainM);
       sail.position.set(0, deckY + h * y0, z + 0.45);
       sail.geometry.translate(0, 0, 0);
-      g.add(sail); sails.push(sail);
+      if (!player) { g.add(sail); sails.push(sail); } // 自船は帆なし（甲板の兵が見えるように）
     });
     if (main) { const nest = cyl(0.8, 0.6, 0.5, '#4a3020', 8, g); nest.position.set(0, deckY + h * 0.8, z); }
     // 旗

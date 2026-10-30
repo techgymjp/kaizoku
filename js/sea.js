@@ -85,6 +85,10 @@ export class Sea {
       // 赤備えの船長は甲板の真ん中、後ろから見える所に立つ
       const hero = makeWarrior('hero'); hero.position.set(0, ud.deckY + 0.1, -ud.len * 0.14); hero.scale.setScalar(2.0); ud.inner.add(hero); this.hero = hero;
       ud.spots.slice(2, 8).forEach(([x, z, y = 0], i) => { const c = makeCrewman('spear', 'west', '#b0141a'); c.position.set(x, ud.deckY + y, z); ud.inner.add(c); });
+      // 船首の大砲
+      const cn = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 4, 10), new THREE.MeshLambertMaterial({ color: '#2a2a2e' }));
+      cn.rotation.x = Math.PI / 2; cn.position.set(0, ud.deckY + 1.9, ud.len * 0.47); ud.inner.add(cn);
+      this.bowCannon = new THREE.Object3D(); this.bowCannon.position.set(0, ud.deckY + 1.9, ud.len * 0.55); ud.inner.add(this.bowCannon);
       // その前、船首楼に鉄砲隊 5 人が横一列に並ぶ（船の向きに構える）
       this.gunners = [[-0.32, 0.31], [-0.16, 0.34], [0, 0.36], [0.16, 0.34], [0.32, 0.31]].map(([x, z]) => {
         const c = makeCrewman('gun', 'west', '#b0141a');
@@ -967,12 +971,19 @@ export class Sea {
     if (G.st < 25) { this.floats.add(P.x, 8, P.z, L('息が切れた', 'Out of breath'), '#ffdc78'); P.cdBomb = 0.3; return; }
     G.st -= 25; G.stDelay = 0.8;
     P.cdBomb = 1.2;
-    const dx = aim.x - P.x, dz = aim.z - P.z, d = clamp(Math.hypot(dx, dz), 30, 220);
-    const T = 0.6 + d / 160;
-    const vx = dx / Math.hypot(dx, dz) * d / T, vz = dz / Math.hypot(dx, dz) * d / T;
-    const vy = (0.5 * 40 * T * T - 3) / T;
-    this.addBullet(P.x, 3, P.z, vx, vy, vz, 'bomb', 70, T + 0.5);
-    Sfx.whoosh();
+    // 船首の大砲：船の向きに、約 1.8km 先へ
+    const mz = this.bowCannon ? this.bowCannon.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(P.x, 4, P.z);
+    // 正面に敵がいれば、砲手がその距離に仰角を合わせる
+    const fe = this.front && !this.front.e.sink ? this.front.e : null;
+    const d = fe ? clamp(Math.hypot(fe.x - mz.x, fe.z - mz.z) + (Math.cos(fe.h) * Math.cos(P.h) + Math.sin(fe.h) * Math.sin(fe.h === undefined ? 0 : P.h)) * fe.v * 0.8, 30, 300) : 180;
+    const T = 0.7 + d / 220;
+    const vx = Math.cos(P.h) * d / T, vz = Math.sin(P.h) * d / T;
+    const vy = (0.5 * 40 * T * T - mz.y) / T;
+    this.addBullet(mz.x, mz.y, mz.z, vx, vy, vz, 'bomb', 70, T + 0.5);
+    this.muzzleFire(mz, P.h); this.muzzleFire(mz, P.h);
+    this.smoke(mz.x, mz.y + 1, mz.z, 6, '#d8d8d8');
+    Sfx.cannon(0.8);
+    this.camShake = 0.35;
   }
   muzzleFire(p, a) {
     // 銃口から吹き出す火と煙
@@ -1013,7 +1024,7 @@ export class Sea {
         if (b.y <= 0.2) {
           b.life = 0;
           this.explode(b.x, b.z);
-          for (const e of this.enemies) if (!e.sink && Math.hypot(e.x - b.x, e.z - b.z) < 16 + e.r) this.hurtEnemy(e, b.dmg * (1 - Math.hypot(e.x - b.x, e.z - b.z) / 30), true);
+          for (const e of this.enemies) { if (e.sink) continue; const dd = Math.hypot(e.x - b.x, e.z - b.z); if (dd < 14 + e.r) { const kill = dd < e.r + 3 ? 4 : 2; this.floats.add(e.x, 9, e.z, L(`砲撃！ ${kill} 人`, `Cannon! ${kill} down`), '#ffb040', true); this.hurtEnemy(e, (e.maxHp / 8) * kill + 0.01); } }
         }
         continue;
       }

@@ -1087,8 +1087,8 @@ export class Island {
     const cv = $('minimap'), g = cv.getContext('2d');
     const W = cv.width, H = cv.height;
     const P = this.P;
-    // 自分のまわり約 700m を拡大して見せる
-    const span = 700, s = W / span;
+    // 自分のまわり約 350m を拡大して見せる
+    const span = 350, s = W / span;
     const half = this.size / 2, pw = this.photo.width / this.size;
     g.fillStyle = '#1c3a56'; g.fillRect(0, 0, W, H);
     const sx = (P.x - span / 2 + half) * pw, sy = (P.z - span * H / W / 2 + half) * pw;

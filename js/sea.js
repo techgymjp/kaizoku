@@ -426,8 +426,8 @@ export class Sea {
     const cv = $('minimap'), g = cv.getContext('2d');
     const W = cv.width, H = cv.height;
     const P = this.P;
-    // 自船のまわり（約 30km 四方）を拡大
-    const span = 260; // DEM 画素
+    // 自船のまわり（約 15km 四方）を拡大
+    const span = 130; // DEM 画素
     const px = P.x / SEA_K, py = P.z / SEA_K;
     const sx = clamp(px - span / 2, 0, DEM.w - span), sy = clamp(py - span * H / W / 2, 0, DEM.h - span * H / W);
     const sh = span * H / W;
@@ -457,7 +457,7 @@ export class Sea {
     g.fillStyle = '#ff3a2a'; g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(11, 0); g.lineTo(-7, -6); g.lineTo(-3, 0); g.lineTo(-7, 6); g.closePath(); g.fill(); g.stroke();
     g.restore();
     g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(W - 26, 4, 22, 22); g.fillStyle = '#fff'; g.font = '700 13px serif'; g.fillText(L('北', 'N'), W - 21, 20);
-    const km10 = 1000 / SEA_K * k; g.fillStyle = '#fff'; g.fillRect(8, H - 10, km10, 3); g.font = '11px serif'; g.fillText('10km', 8, H - 14);
+    const km5 = 500 / SEA_K * k; g.fillStyle = '#fff'; g.fillRect(8, H - 10, km5, 3); g.font = '11px serif'; g.fillText('5km', 8, H - 14);
     // 全体の進み具合
     const all = $('routebar');
     if (all) {
@@ -941,16 +941,13 @@ export class Sea {
       return;
     }
     if (this.gunners) {
-      // 5 丁一斉に撃つ
-      Sfx.gun(0.7); Sfx.cannon(0.25);
-      this.gunners.forEach((g, i) => {
-        const mz = g.mz.getWorldPosition(new THREE.Vector3());
-        const ta = P.h + rand(-0.022, 0.022); // 船首に据えた鉄砲：船の向きにまっすぐ
-        const sp = 150;
-        const b = this.addBullet(mz.x, mz.y, mz.z, Math.cos(ta) * sp, 0.8, Math.sin(ta) * sp, 'p', 14, 2.3);
-        b.ox = P.x; b.oz = P.z;
-        b.g = 1.2;
-        this.muzzleFire(mz, ta);
+      // 5 丁を、ランダムな順にわずかにずらして撃つ
+      const order = [0, 1, 2, 3, 4].sort(() => Math.random() - 0.5);
+      let wait = 0;
+      order.forEach((gi, k) => {
+        const g = this.gunners[gi];
+        wait += k === 0 ? 0 : rand(40, 110);
+        setTimeout(() => this.fireOne(g, P), wait);
       });
       return;
     }
@@ -984,6 +981,16 @@ export class Sea {
     this.smoke(mz.x, mz.y + 1, mz.z, 6, '#d8d8d8');
     Sfx.cannon(0.8);
     this.camShake = 0.35;
+  }
+  // 鉄砲隊の 1 人が撃つ
+  fireOne(g, P) {
+    if (this.G.state !== 'play') return;
+    const mz = g.mz.getWorldPosition(new THREE.Vector3());
+    const ta = P.h + rand(-0.022, 0.022);
+    const b = this.addBullet(mz.x, mz.y, mz.z, Math.cos(ta) * 150, 0.8, Math.sin(ta) * 150, 'p', 14, 2.3);
+    b.ox = P.x; b.oz = P.z; b.g = 1.2;
+    this.muzzleFire(mz, ta);
+    Sfx.gun(rand(0.4, 0.55));
   }
   muzzleFire(p, a) {
     // 銃口から吹き出す火と煙

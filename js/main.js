@@ -224,6 +224,7 @@ async function land(c) {
     island = new Island(renderer, G);
     await island.load(c, (t) => setLoad(t));
     mode = 'island';
+    G.hp = G.maxHp; G.st = G.maxSt; // 上陸したら体力を全回復してから戦う
     sea.tags.clear(); sea.floats.clear();
     Sfx.bgm(G.final ? 'final' : 'island');
     Sfx.horn(0.3, 0, 1.05, [0.5, 0.5, 1.2]);

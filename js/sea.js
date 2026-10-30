@@ -50,11 +50,11 @@ export class Sea {
     this.r = renderer; this.G = G;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.05, 14000);
-    this.view = 'bow'; // bow = 船首からの目線、chase = 後ろから
+    this.view = 'chase'; // 船の後ろからの視点
     this.floats = new Floats(); this.tags = new Tags();
     this.chunks = new Map();
     this.enemies = []; this.bullets = []; this.parts = []; this.loot = []; this.wakes = []; this.fallers = [];
-    this.t = 0; this.spawnT = 3; this.camYaw = 0; this.camDist = 64; this.camH = 30;
+    this.t = 0; this.spawnT = 3; this.camYaw = 0; this.camDist = 50; this.camH = 30;
     this.colliders = [];
   }
 
@@ -83,7 +83,15 @@ export class Sea {
     {
       const ud = this.ship.userData;
       const hero = makeWarrior('hero'); hero.position.set(0, ud.deckY + 2.4, -ud.len * 0.36); hero.scale.setScalar(1.15); ud.inner.add(hero); this.hero = hero;
-      ud.spots.slice(2, 8).forEach(([x, z, y = 0], i) => { const c = makeCrewman(i < 2 ? 'gun' : 'spear', 'west', '#b0141a'); c.position.set(x, ud.deckY + y, z); ud.inner.add(c); });
+      ud.spots.slice(2, 8).forEach(([x, z, y = 0], i) => { const c = makeCrewman('spear', 'west', '#b0141a'); c.position.set(x, ud.deckY + y, z); ud.inner.add(c); });
+      // 船首楼に鉄砲隊 4 人（船の向きに構える）
+      this.gunners = [[-0.28, 0.3], [-0.1, 0.38], [0.1, 0.38], [0.28, 0.3]].map(([x, z]) => {
+        const c = makeCrewman('gun', 'west', '#b0141a');
+        c.position.set(x * ud.width, ud.deckY + 1.4, z * ud.len); c.scale.setScalar(1.25);
+        ud.inner.add(c);
+        const mz = new THREE.Object3D(); mz.position.set(0.32, 1.25, 1.15); c.add(mz); // 銃口
+        return { c, mz };
+      });
     }
     let [sx, sz] = ll2sea(START.lon, START.lat);
     for (let r = 0; r < 80 && (hSea(sx, sz) > -4 || hSea(sx + 8, sz) > -3 || hSea(sx, sz + 8) > -3); r++) { sx += rand(-6, 6); sz += 5; }
@@ -665,7 +673,7 @@ export class Sea {
       this.updateCrosshair(fw);
       gu.match.material.color.setHSL(0.07, 1, 0.5 + Math.sin(this.t * 20) * 0.15);
     }
-    this.aimMark.visible = this.view !== 'bow' && (!!aim.lock || I.mouseAim);
+    this.aimMark.visible = false;
     $('crosshair').classList.toggle('hidden', this.view !== 'bow');
     P.cd -= dt; P.cdBomb -= dt;
     if ((I.fire || I.down('KeyJ')) && P.cd <= 0) { I.fire = false; this.fireVolley(aim); }
@@ -804,7 +812,7 @@ export class Sea {
   }
   updateCamera(dt, I) {
     const P = this.P;
-    if (I.pressed('KeyV') || I.toggleView) { I.toggleView = false; this.view = this.view === 'bow' ? 'chase' : 'bow'; this.camInit = false; }
+    I.toggleView = false;
     if (I.down('KeyQ')) this.camYaw -= dt * 1.5;
     if (I.down('KeyE') && !this.canLand) this.camYaw += dt * 1.5;
     if (I.lookDX) { this.camYaw += I.lookDX * 0.004; I.lookDX = 0; }
@@ -834,7 +842,7 @@ export class Sea {
     cam.position.x += (tx - cam.position.x) * k; cam.position.z += (tz - cam.position.z) * k;
     const gh = Math.max(0, hSea(cam.position.x, cam.position.z) * VEX);
     cam.position.y += (Math.max(this.camH * this.camDist / 46, gh + 6) - cam.position.y) * k;
-    cam.lookAt(P.x + Math.cos(P.h) * 22, 7, P.z + Math.sin(P.h) * 22);
+    cam.lookAt(P.x + Math.cos(P.h) * 45, 4, P.z + Math.sin(P.h) * 45);
   }
   updateSky(p, fin) {
     const top = new THREE.Color('#5a8ed0'), hor = new THREE.Color('#d8e6ee');
@@ -855,6 +863,19 @@ export class Sea {
 
   aimPoint(I) {
     const P = this.P;
+    if (this.view === 'chase') {
+      let best = null, bs = 1e9;
+      for (const e of this.enemies) {
+        if (e.sink || e.far) continue;
+        const dx = e.x - P.x, dz = e.z - P.z, d = Math.hypot(dx, dz);
+        if (d > 330 || d < 8) continue;
+        const ad = Math.abs(angDiff(Math.atan2(dz, dx), P.h));
+        if (ad > 0.09 + Math.atan(e.r / d)) continue;
+        if (d < bs) { bs = d; best = e; }
+      }
+      if (best) return { x: best.x, z: best.z, lock: best };
+      return { x: P.x + Math.cos(P.h) * 260, z: P.z + Math.sin(P.h) * 260 };
+    }
     if (this.view === 'bow') {
       const fw = this.aimDir(), o = this.camera.position;
       const tg = this.aimTarget(fw);
@@ -914,6 +935,19 @@ export class Sea {
       Sfx.gun(0.6); setTimeout(() => Sfx.gun(0.35), 70);
       return;
     }
+    if (this.gunners) {
+      this.gunners.forEach((g, i) => setTimeout(() => {
+        if (this.G.state !== 'play') return;
+        const mz = g.mz.getWorldPosition(new THREE.Vector3());
+        const ta = Math.atan2(aim.z - mz.z, aim.x - mz.x) + rand(-0.025, 0.025);
+        const sp = 150;
+        const b = this.addBullet(mz.x, mz.y, mz.z, Math.cos(ta) * sp, 0.8, Math.sin(ta) * sp, 'p', 14, 2.3);
+        b.g = 1.2;
+        this.muzzleFire(mz, ta);
+        if (i % 2 === 0) Sfx.gun(0.45);
+      }, i * 55));
+      return;
+    }
     for (let i = 0; i < 4; i++) {
       const side = angDiff(a, P.h) > 0 ? 1 : -1;
       const ox = P.x + Math.cos(P.h) * (i - 1.5) * 2.6 + Math.cos(P.h + side * Math.PI / 2) * 2.4;
@@ -938,8 +972,24 @@ export class Sea {
     this.addBullet(P.x, 3, P.z, vx, vy, vz, 'bomb', 70, T + 0.5);
     Sfx.whoosh();
   }
+  muzzleFire(p, a) {
+    // 銃口から吹き出す火と煙
+    for (let k = 0; k < 7; k++) { const s = rand(8, 24); this.sprite(k < 4 ? '#ffb030' : '#ff5a10', p.x + Math.cos(a) * k * 1.1, p.y, p.z + Math.sin(a) * k * 1.1, rand(2.4, 3.6) - k * 0.25, 0.35, Math.cos(a) * s, rand(-1, 2), Math.sin(a) * s, 0.8); }
+    this.sprite('#fff0b0', p.x, p.y, p.z, 4, 0.1, 0, 0, 0, 0);
+    this.smoke(p.x + Math.cos(a), p.y, p.z + Math.sin(a), 2);
+  }
   addBullet(x, y, z, vx, vy, vz, from, dmg, life) {
-    const m = new THREE.Mesh(this.bulletGeo, from === 'bomb' ? this.bombMat : this.bulletMat);
+    let m;
+    if (from === 'p' || from === 'e') {
+      // 光る弾と、その後ろに伸びる軌跡
+      if (!this.tracerGeo) { this.tracerGeo = new THREE.CylinderGeometry(0.5, 0.05, 26, 6, 1, true); this.tracerGeo.rotateX(Math.PI / 2); this.tracerGeo.translate(0, 0, -13);
+        this.tracerP = new THREE.MeshBasicMaterial({ color: '#ffe070', transparent: true, opacity: 0.9, depthWrite: false, fog: false });
+        this.tracerE = new THREE.MeshBasicMaterial({ color: '#ff5a3a', transparent: true, opacity: 0.85, depthWrite: false, fog: false }); }
+      m = new THREE.Group();
+      const head = new THREE.Mesh(this.bulletGeo, from === 'p' ? this.tracerP : this.tracerE); head.scale.setScalar(1.1); m.add(head);
+      const tail = new THREE.Mesh(this.tracerGeo, from === 'p' ? this.tracerP : this.tracerE); m.add(tail);
+      m.lookAt(x + vx, y + vy, z + vz);
+    } else m = new THREE.Mesh(this.bulletGeo, this.bombMat);
     m.position.set(x, y, z);
     if (from === 'bomb') m.scale.setScalar(2);
     this.scene.add(m);
@@ -956,6 +1006,7 @@ export class Sea {
       else if (b.g) { b.vy -= b.g * dt; b.y += b.vy * dt; if (b.y < 0) { b.life = 0; this.splashAt(b.x, b.z, 0.6); } }
       else b.y = Math.max(0.6, b.y - dt * 0.4);
       b.m.position.set(b.x, b.y, b.z);
+      if (b.from === 'p' || b.from === 'e') b.m.lookAt(b.x + b.vx, b.y + b.vy, b.z + b.vz);
       if (b.from === 'bomb') {
         if (b.y <= 0.2) {
           b.life = 0;
@@ -1112,7 +1163,7 @@ export class Sea {
           if (e.sink || this.G.state !== 'play') return;
           const a = Math.atan2(tz - e.z, tx - e.x) + rand(-0.06, 0.06);
           this.addBullet(e.x, 2, e.z, Math.cos(a) * 140, 0, Math.sin(a) * 140, 'e', e.dmg, 2.0);
-          this.smoke(e.x, 2.4, e.z, 2);
+          this.muzzleFire({ x: e.x + Math.cos(a) * e.r, y: 2.2, z: e.z + Math.sin(a) * e.r }, a);
           Sfx.gun(clamp(0.45 - d / 700, 0.08, 0.4));
         }, i * 160);
       }

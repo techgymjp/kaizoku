@@ -299,7 +299,7 @@ $('shareLine').addEventListener('click', () => open('https://social-plugins.line
 function updateHelp() {
   const sea = mode === 'sea';
   $('seaHelp').innerHTML = sea
-    ? L('<kbd>W</kbd><kbd>S</kbd>帆 <kbd>A</kbd><kbd>D</kbd>舵 <kbd>J</kbd>鉄砲 <kbd>K</kbd>焙烙玉 <kbd>Space</kbd>全速 <kbd>E</kbd>上陸 <kbd>V</kbd>視点　クリックでマウス照準（Esc で解除）', '<kbd>W</kbd><kbd>S</kbd> sail <kbd>A</kbd><kbd>D</kbd> steer <kbd>J</kbd> guns <kbd>K</kbd> bomb <kbd>Space</kbd> full sail <kbd>E</kbd> land <kbd>V</kbd> view · click to aim with the mouse (Esc to release)')
+    ? L('<kbd>W</kbd><kbd>S</kbd>帆 <kbd>A</kbd><kbd>D</kbd>舵 <kbd>J</kbd>鉄砲 <kbd>K</kbd>焙烙玉 <kbd>Space</kbd>全速 <kbd>E</kbd>上陸　鉄砲は船の向きに撃つ', '<kbd>W</kbd><kbd>S</kbd> sail <kbd>A</kbd><kbd>D</kbd> steer <kbd>J</kbd> guns <kbd>K</kbd> bomb <kbd>Space</kbd> full sail <kbd>E</kbd> land · guns fire where the ship points')
     : L('<kbd>WASD</kbd>移動 <kbd>J</kbd>刀 <kbd>K</kbd>槍 <kbd>Space</kbd>駆 <kbd>Q</kbd><kbd>E</kbd>視点 <kbd>E</kbd>乗船', '<kbd>WASD</kbd> move <kbd>J</kbd> sword <kbd>K</kbd> spear <kbd>Space</kbd> dash <kbd>Q</kbd><kbd>E</kbd> camera <kbd>E</kbd> board');
   const lab = sea ? [L('鉄砲', 'Guns'), L('焙烙', 'Bomb'), L('全速', 'Full'), L('上陸', 'Land')] : [L('刀', 'Sword'), L('槍', 'Spear'), L('駆', 'Dash'), L('乗船', 'Board')];
   ['btnSword', 'btnSpear', 'btnDash', 'btnLand'].forEach((id, i) => { $(id).textContent = lab[i]; delete $(id).dataset.en; });

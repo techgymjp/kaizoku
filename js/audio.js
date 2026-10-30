@@ -377,6 +377,9 @@ export const Sfx = (() => {
     bomb() { noise(1.0, 140, 0.5, 0.75, 'lowpass'); noise(0.3, 900, 0.8, 0.4, 'bandpass'); tone(48, 0.7, 0.4, 'sine', 0.5); },
     whoosh() { noise(0.35, 700, 1.2, 0.18, 'bandpass'); },
     bell() { [0, 1.5].forEach((w) => { tone(196, 3.5, 0.12, 'sine', 1, w); tone(392 * 1.01, 2.5, 0.05, 'sine', 1, w); tone(590, 1.8, 0.03, 'sine', 1, w); }); },
+    // 花火の打ち上げと破裂（「センターフライ」の花火の音を元に）
+    launch() { tone(400, 0.8, 0.03, 'sine', 3.7); noise(0.7, 3000, 1, 0.05, 'highpass'); },
+    boom() { noise(1.1, 400, 0.7, 0.7, 'lowpass'); tone(90, 0.6, 0.4, 'sine', 0.4); for (let i = 0; i < 5; i++) noise(0.03, 5000, 1, 0.04 + Math.random() * 0.08, 'highpass', 0.25 + Math.random()); },
     oar() { noise(0.25, 500, 1.5, 0.1, 'bandpass'); },
   };
   return api;

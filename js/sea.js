@@ -5,6 +5,7 @@ import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, DANNOURA, s
 import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeGanryu, makeFleetGeometry, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
+import { Fireworks } from './fireworks.js';
 import { L, islandName, getLang, romaji } from './i18n.js';
 const N = (o) => L(o.name, o.en || o.name);
 
@@ -122,6 +123,7 @@ export class Sea {
     this.buildIslets();
     this.buildNames();
     this.buildHarbors();
+    this.fw = new Fireworks(S, 0.6, true);
     this.bulletGeo = new THREE.SphereGeometry(0.5, 6, 4);
     this.bulletMat = new THREE.MeshBasicMaterial({ color: '#2a2a2a' });
     this.bombMat = new THREE.MeshBasicMaterial({ color: '#ff8a2a' });
@@ -813,6 +815,7 @@ export class Sea {
     this.updateBullets(dt);
     this.updateParts(dt);
     this.updateFallers(dt);
+    this.fw.update(dt);
     this.lodT = (this.lodT || 0) - dt;
     const lodFull = this.lodT <= 0; if (lodFull) this.lodT = 0.3;
     this.updateFleetLOD(lodFull);
@@ -832,7 +835,11 @@ export class Sea {
     if (G.final) {
       const left = this.enemies.filter((e) => e.final && !e.sink).length;
       G.finalLeft = left;
-      if (left === 0 && !G.finalCleared) { G.finalCleared = true; banner(L('平家の怨霊、鎮まる', 'The Heike ghosts are laid to rest'), L('巌流島へ船を着けよ', 'Bring the ship to Ganryūjima')); Sfx.bell(); this.goalBeam.visible = true; Sfx.bgm('battle'); }
+      if (left === 0 && !G.finalCleared) { G.finalCleared = true; banner(L('平家の怨霊、鎮まる', 'The Heike ghosts are laid to rest'), L('巌流島へ船を着けよ', 'Bring the ship to Ganryūjima')); Sfx.bell(); this.goalBeam.visible = true; Sfx.bgm('battle');
+        // 全員討ち取ったら、巌流島の空に花火をたくさん
+        for (let k = 0; k < 4; k++) this.fw.show(this.goal.x, 0, this.goal.z, 10, k === 3, 0.3, 140);
+        this.fw.show(P.x + Math.cos(P.h) * 120, 0, P.z + Math.sin(P.h) * 120, 12, true, 0.45, 160);
+      }
       const dg = Math.hypot(P.x - this.goal.x, P.z - this.goal.z);
       if (dg < 70) {
         if (G.finalCleared) { G.onGoal(); }

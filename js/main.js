@@ -258,6 +258,7 @@ function onGoal() {
   if (G.state !== 'play') return;
   G.state = 'clearing'; G.endT = 0;
   Sfx.bgm('clear'); Sfx.fanfare(); Sfx.bell();
+  if (sea) sea.fw.show(sea.goal.x, 0, sea.goal.z, 30, true, 0.25, 180);
   banner(L('巌流島に着いた！', 'You reached Ganryūjima!'), L(`瀬戸内の海賊王・${playerName()}、ここに誕生`, `${playerName()}, Pirate King of the Seto Inland Sea, is born`));
 }
 
@@ -321,13 +322,18 @@ function updateHUD(dt) {
   else if (sea && sea.zone) place = zoneName(sea.zone);
   if (G.final && !G.finalCleared) place = L(`決戦　残り ${G.finalLeft ?? '?'} 艘`, `Final battle: ${G.finalLeft ?? '?'} ships left`);
   $('hPlace').textContent = place;
-  const nv = $('harborNav'), nh = mode === 'sea' && sea ? sea.nav : null;
+  let nh = mode === 'sea' && sea ? sea.nav : null;
+  if (mode === 'island' && island && island.P) {
+    const T = island.treasure, P = island.P, tg = T.taken ? island.ship : T;
+    nh = { x: tg.x, z: tg.z, d: Math.hypot(tg.x - P.x, tg.z - P.z) / 10, label: T.taken ? L('⚓ 船', '⚓ Ship') : L('★ 財宝', '★ Treasure'), isl: true, h: P.heading ?? P.face, px: P.x, pz: P.z };
+  }
+  const nv = $('harborNav');
   nv.classList.toggle('hidden', !nh);
   if (nh) {
-    const P = sea.P, h = nh;
-    const rel = Math.atan2(h.z - P.z, h.x - P.x) - P.h; // 船の向きから見た方向
+    const P = nh.label ? { x: nh.px, z: nh.pz, h: nh.h } : sea.P, h = nh;
+    const rel = Math.atan2(h.z - P.z, h.x - P.x) - P.h; // 船（主人公）の向きから見た方向
     $('navArrow').style.transform = `rotate(${(rel * 180) / Math.PI - 90}deg)`;
-    const nn = nh.goal ? L('巌流島', 'Ganryūjima') : islandName(nh.isl);
+    const nn = nh.label || (nh.goal ? L('巌流島', 'Ganryūjima') : islandName(nh.isl));
     if ($('navName').textContent !== nn) $('navName').textContent = nn;
     const km = nh.d * 10;
     $('navInfo').textContent = (km >= 1000 ? `${(km / 1000).toFixed(1)}km` : `${Math.round(km)}m`) + (nh.goal && G.final && !G.finalCleared ? L(`　残り${G.finalLeft ?? '?'}艘`, ` · ${G.finalLeft ?? '?'} left`) : '');

@@ -4,6 +4,7 @@ import * as THREE from './vendor/three.module.min.js';
 import { DEM, hPx, px2ll, lon2gx, lat2gy, gx2lon, gy2lat, loadImage, fetchWithTimeout, SEA_FLOOR } from './geo.js';
 import { LANDMARKS, ISLAND_NOTES, ISLAND_NOTES_EN, ISLAND_BOSSES, ZONES, zoneAt } from './data.js';
 import { decodeMVT } from './mvt.js';
+import { Fireworks } from './fireworks.js';
 import { makeCrewman, makeWarrior, poseWarrior, makeTorii, makeHall, makePagoda, makeJoyato, makeChest, makeOnigiri, makeShip, makeDeer, makeRabbit, makeGangi, makePumpkin, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
@@ -219,7 +220,15 @@ export class Island {
     const i = fx | 0, j = fz | 0, u = fx - i, v = fz - j, H = this.H, k = j * N + i;
     return (H[k] * (1 - u) + H[k + 1] * u) * (1 - v) + (H[k + N] * (1 - u) + H[k + N + 1] * u) * v;
   }
+  // 桟橋の上なら、その高さ
+  onPlank(x, z) {
+    const p = this.plank; if (!p) return null;
+    const dx = p.bx - p.ax, dz = p.bz - p.az, L = hypot(dx, dz) || 1;
+    const t = ((x - p.ax) * dx + (z - p.az) * dz) / (L * L), side = Math.abs(((x - p.ax) * dz - (z - p.az) * dx) / L);
+    return t > -0.05 && t < 1.05 && side < p.hw ? p.y : null;
+  }
   canWalk(x, z) {
+    if (this.onPlank(x, z) !== null) return true;
     const N = this.N, half = this.size / 2;
     const i = Math.round((x + half) / this.cell), j = Math.round((z + half) / this.cell);
     if (i < 1 || j < 1 || i >= N - 1 || j >= N - 1) return false;
@@ -297,9 +306,13 @@ export class Island {
     ship.traverse((o) => { if (o.isMesh) { o.material = cutaway(o.material.clone()); } });
     this.ship = { m: ship, x: shx, z: shz };
     // 桟橋
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.25, hypot(shx - cx0, shz - cz0) + 2), mat('#7a5a3a'));
-    plank.position.set((shx + cx0) / 2, 1.2, (shz + cz0) / 2); plank.rotation.y = Math.atan2(shx - cx0, shz - cz0);
+    // 桟橋（幅 3.2m。上を歩ける）
+    const pl = hypot(shx - cx0, shz - cz0) + 2, pY = Math.max(1.2, this.hAt(cx0, cz0) + 0.2);
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.25, pl), mat('#7a5a3a'));
+    plank.position.set((shx + cx0) / 2, pY, (shz + cz0) / 2); plank.rotation.y = Math.atan2(shx - cx0, shz - cz0);
     S.add(plank);
+    for (const sd of [-1, 1]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, pl), mat('#5a3e26')); rail.position.set(0, 0, 0); plank.add(rail); rail.position.set(sd * 1.55, 0.35, 0); }
+    this.plank = { ax: cx0, az: cz0, bx: shx, bz: shz, y: pY + 0.13, hw: 1.5 };
     // 主人公：岸から少し内陸に立つ（背中のカメラが船に埋まらないように）
     let px0 = cx0, pz0 = cz0;
     for (let k = 1; k <= 12; k++) { const x = cx0 - dx * k, z = cz0 - dz * k; if (this.canWalk(x, z)) { px0 = x; pz0 = z; } else break; }
@@ -322,6 +335,7 @@ export class Island {
     this.bulletMat = new THREE.MeshBasicMaterial({ color: '#202020' });
     this.smokeTex = smokeTex();
     this.t = 0;
+    this.fw = new Fireworks(S, 0.5, true);
     // 島の案内
     const note = ISLAND_NOTES[this.isl.id];
     banner(L(`${this.isl.name}に上陸`, `Landed on ${islandName(this.isl)}`), L(note || (this.isl.kana ? `（${this.isl.kana}）` : ''), ISLAND_NOTES_EN[this.isl.id] || ''));
@@ -688,6 +702,7 @@ export class Island {
     this.updateParts(dt);
     this.updatePickups(dt);
     this.updateCritters(dt);
+    this.fw.update(dt);
     // 財宝
     const T = this.treasure, P = this.P;
     T.m.userData.glow.scale.setScalar(1 + Math.sin(this.t * 4) * 0.1);
@@ -701,13 +716,14 @@ export class Island {
       msg(L('島の海賊どもが追ってくる！', 'The island pirates are coming after you!'), 'warn', 4);
       this.activate();
       flash('rgba(255,230,120,0.4)');
+      { const hd = P.heading ?? P.face, fx = P.x + Math.cos(hd) * 70, fz = P.z + Math.sin(hd) * 70; this.fw.show(fx, Math.max(0, this.hAt(fx, fz)) - 14, fz, 10, false, 0.35, 90); } // 財宝を取ったら、目の前の空に花火
     }
     // 船に乗る
     const ds = hypot(this.ship.x - P.x, this.ship.z - P.z);
     // 船に戻れば自動で乗る（上陸してすぐ乗らないよう、一度船から離れてから）
     if (ds > 30) this.leftShip = true;
     $('landPrompt').classList.add('hidden');
-    if (ds < 9 && (this.leftShip || T.taken) && !P.dead) { msg(L('船に乗り込んだ！', 'All aboard!'), 'sys', 2); G.board(); return; }
+    if (ds < 11 && (this.leftShip || T.taken) && !P.dead) { msg(L('船に乗り込んだ！', 'All aboard!'), 'sys', 2); G.board(); return; }
     I.land = false;
     // 音
     let th = 0;
@@ -758,7 +774,8 @@ export class Island {
     else if (this.canWalk(nx, P.z)) { P.x = nx; P.vz *= 0.5; }
     else if (this.canWalk(P.x, nz)) { P.z = nz; P.vx *= 0.5; }
     else { P.vx *= 0.3; P.vz *= 0.3; }
-    P.y = Math.max(this.hAt(P.x, P.z), -0.6);
+    const py = this.onPlank(P.x, P.z);
+    P.y = py !== null ? Math.max(py, this.hAt(P.x, P.z)) : Math.max(this.hAt(P.x, P.z), -0.6);
     const sp = hypot(P.vx, P.vz);
     P.gait += sp * dt * 1.6;
     if (sp > 3) { P.stepT -= dt; if (P.stepT <= 0) { P.stepT = P.dashing ? 0.18 : 0.3; Sfx.gallop(); if (P.dashing) this.dust(P.x, P.z, 1); } }

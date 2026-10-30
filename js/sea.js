@@ -724,11 +724,11 @@ export class Sea {
       P.sail = mag > 0.25 ? (mag > 0.8 ? 3 : 2) : P.sail;
     }
     const dash = (I.down('Space') || I.down('ShiftLeft') || I.down('ShiftRight') || I.tDash) && G.st > 3 && P.sail > 0;
-    if (dash) { G.st = Math.max(0, G.st - 22 * dt); G.stDelay = 0.6; if (Math.random() < dt * 4) Sfx.oar(); }
-    else { if (G.stDelay > 0) G.stDelay -= dt; else G.st = Math.min(G.maxSt, G.st + 16 * dt); }
+    if (dash) { P.dashT = (P.dashT || 0) + dt; G.st = Math.max(0, G.st - 16 * dt); G.stDelay = 0.6; if (Math.random() < dt * 4) Sfx.oar(); }
+    else { P.dashT = 0; if (G.stDelay > 0) G.stDelay -= dt; else G.st = Math.min(G.maxSt, G.st + 16 * dt); }
     const sailV = [-6, 0, 13, 22, 31][P.sail + 1];
-    const target = (sailV > 0 ? sailV * this.windMul(P.h) : sailV) + (dash ? 15 : 0);
-    P.v += (target - P.v) * (1 - Math.exp(-dt * (target > P.v ? 0.7 : 1.2)));
+    const target = (sailV > 0 ? sailV * this.windMul(P.h) : sailV) + (dash ? 20 + Math.min(40, P.dashT * 16) : 0); // 長押しするほど速い（最大 +60）
+    P.v += (target - P.v) * (1 - Math.exp(-dt * (target > P.v ? (dash ? 1.6 : 0.7) : 1.2)));
     const tr = turn * (0.55 + Math.min(0.5, Math.abs(P.v) / 40));
     P.h += tr * dt;
     P.roll += (-turn * Math.min(1, Math.abs(P.v) / 25) * 0.12 - P.roll) * (1 - Math.exp(-dt * 3));

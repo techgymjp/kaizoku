@@ -703,10 +703,10 @@ export class Island {
     }
     // 船に乗る
     const ds = hypot(this.ship.x - P.x, this.ship.z - P.z);
-    const near = ds < 20;
-    $('landPrompt').classList.toggle('hidden', !near);
-    if (near) $('landPrompt').innerHTML = (T.taken ? L('<span class="gold">財宝を積んだ</span>', '<span class="gold">Treasure aboard</span>') : L('<span class="dim">まだ財宝を奪っていない</span>', '<span class="dim">Treasure not taken yet</span>')) + L('<br><kbd>E</kbd> 船に乗る', '<br><kbd>E</kbd> Board the ship');
-    if (near && (I.pressed('KeyE') || I.land) && !P.dead) { I.land = false; G.board(); return; }
+    // 船に戻れば自動で乗る（上陸してすぐ乗らないよう、一度船から離れてから）
+    if (ds > 30) this.leftShip = true;
+    $('landPrompt').classList.add('hidden');
+    if (ds < 9 && (this.leftShip || T.taken) && !P.dead) { msg(L('船に乗り込んだ！', 'All aboard!'), 'sys', 2); G.board(); return; }
     I.land = false;
     // 音
     let th = 0;
@@ -738,13 +738,14 @@ export class Island {
 
     const wantDash = I.down('Space') || I.down('ShiftLeft') || I.down('ShiftRight') || I.down('KeyL') || I.tDash;
     if (wantDash && ml > 0 && (P.dashing ? G.st > 0 : G.st > 15)) {
-      if (!P.dashing) { P.dashing = true; P.inv = Math.max(P.inv, 0.2); this.dust(P.x, P.z, 6); }
-      G.st = Math.max(0, G.st - 34 * dt); G.stDelay = 0.6;
+      if (!P.dashing) { P.dashing = true; P.dashT = 0; P.inv = Math.max(P.inv, 0.2); this.dust(P.x, P.z, 6); }
+      P.dashT += dt;
+      G.st = Math.max(0, G.st - 26 * dt); G.stDelay = 0.6;
     } else {
-      P.dashing = false;
+      P.dashing = false; P.dashT = 0;
       if (G.stDelay > 0) G.stDelay -= dt; else G.st = Math.min(G.maxSt, G.st + 24 * dt);
     }
-    const base = K.walk * (P.dashing ? K.dashMul : 1) * (P.atk && P.atk.type === 'spear' && !P.atk.charge ? 0.55 : 1);
+    const base = K.walk * (P.dashing ? 2.2 + Math.min(1.8, P.dashT * 0.9) : 1) * (P.atk && P.atk.type === 'spear' && !P.atk.charge ? 0.55 : 1);
     if (ml > 0) {
       const tf = this.slopeFactor(P.x, P.z, mx / ml, mz / ml);
       const k = 1 - Math.exp(-dt * (P.dashing ? 9 : 12));

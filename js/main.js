@@ -303,9 +303,9 @@ function updateHelp() {
   const sea = mode === 'sea';
   $('seaHelp').innerHTML = sea
     ? L('<kbd>W</kbd><kbd>S</kbd>帆 <kbd>A</kbd><kbd>D</kbd>舵 <kbd>J</kbd>鉄砲 <kbd>K</kbd>大砲 <kbd>Space</kbd>全速 <kbd>E</kbd>上陸　鉄砲は船の向きに撃つ', '<kbd>W</kbd><kbd>S</kbd> sail <kbd>A</kbd><kbd>D</kbd> steer <kbd>J</kbd> guns <kbd>K</kbd> cannon <kbd>Space</kbd> full sail <kbd>E</kbd> land · guns fire where the ship points')
-    : L('<kbd>W</kbd><kbd>S</kbd>前後 <kbd>A</kbd><kbd>D</kbd>向き <kbd>J</kbd>刀 <kbd>K</kbd>槍 <kbd>Space</kbd>駆 <kbd>E</kbd>乗船', '<kbd>W</kbd><kbd>S</kbd> forward/back <kbd>A</kbd><kbd>D</kbd> turn <kbd>J</kbd> sword <kbd>K</kbd> spear <kbd>Space</kbd> dash <kbd>E</kbd> board');
+    : L('<kbd>W</kbd><kbd>S</kbd>前後 <kbd>A</kbd><kbd>D</kbd>向き <kbd>J</kbd>刀 <kbd>K</kbd>槍 <kbd>Space</kbd>駆　船に戻れば乗船', '<kbd>W</kbd><kbd>S</kbd> forward/back <kbd>A</kbd><kbd>D</kbd> turn <kbd>J</kbd> sword <kbd>K</kbd> spear <kbd>Space</kbd> dash · walk to the ship to board');
   const lab = sea ? [L('鉄砲', 'Guns'), L('大砲', 'Cannon'), L('全速', 'Full'), ''] : [L('刀', 'Sword'), L('槍', 'Spear'), L('駆', 'Dash'), L('乗船', 'Board')];
-  $('btnLand').classList.toggle('hidden', sea);
+  $('btnLand').classList.add('hidden'); // 上陸・乗船は港や船に近づけば自動
   ['btnSword', 'btnSpear', 'btnDash', 'btnLand'].forEach((id, i) => { $(id).textContent = lab[i]; delete $(id).dataset.en; });
 }
 let hudT = 0;

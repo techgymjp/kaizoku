@@ -61,7 +61,7 @@ export class Sea {
   // ---------------- 準備 ----------------
   build() {
     const S = this.scene;
-    this.fog = new THREE.Fog('#c8d8e0', 1500, 9000);
+    this.fog = new THREE.Fog('#c8d8e0', 2200, 9500);
     S.fog = this.fog;
     this.sun = new THREE.DirectionalLight('#fff4e0', 2.2);
     this.sun.position.set(-0.4, 0.8, 0.45);
@@ -171,7 +171,7 @@ export class Sea {
           float fres = pow(1.0 - max(dot(n, v), 0.0), 4.0);
           float c = texture2D(coast, p / mapSize).r;
           vec3 col = mix(deep, shallow, smoothstep(0.35, 1.0, c));
-          col = mix(col, skyC, fres * 0.38);
+          col = mix(col, skyC, fres * 0.22);
           vec3 h = normalize(sunDir + v);
           col += vec3(1.0, 0.95, 0.8) * pow(max(dot(n, h), 0.0), 220.0) * 1.6 * (0.3 + 0.7 * fade) * clamp(sunDir.y * 2.0, 0.15, 1.0);
           float foam = smoothstep(0.9, 0.99, c) * (0.6 + 0.4 * sin(time * 1.2 + (p.x + p.y) * 0.08)) * (0.4 + 0.6 * fade);
@@ -659,10 +659,14 @@ export class Sea {
       gu.kick = Math.max(0, (gu.kick || 0) - dt * 6);
       const asp = Math.min(1, this.camera.aspect * 1.1);
       this.gun.position.set(0.26 * asp, -0.3 + gu.kick * 0.03, -0.6 - (1 - asp) * 0.3 + gu.kick * 0.1);
-      this.gun.lookAt(aim.x, 1.5, aim.z);
+      const fw = this.aimDir();
+      const cp = this.camera.position;
+      this.gun.lookAt(cp.x + fw.x * 400, cp.y + fw.y * 400, cp.z + fw.z * 400);
+      this.updateCrosshair(fw);
       gu.match.material.color.setHSL(0.07, 1, 0.5 + Math.sin(this.t * 20) * 0.15);
     }
-    this.aimMark.visible = !!aim.lock || I.mouseAim;
+    this.aimMark.visible = this.view !== 'bow' && (!!aim.lock || I.mouseAim);
+    $('crosshair').classList.toggle('hidden', this.view !== 'bow');
     P.cd -= dt; P.cdBomb -= dt;
     if ((I.fire || I.down('KeyJ')) && P.cd <= 0) { I.fire = false; this.fireVolley(aim); }
     if (I.bomb && P.cdBomb <= 0) { I.bomb = false; this.throwBomb(aim); }
@@ -739,6 +743,28 @@ export class Sea {
     this.waterU.time.value = this.t;
   }
   camHeading() { return this.P.h + this.camYaw; }
+  // 照準の向き（3D）
+  aimDir() {
+    const ch = this.camHeading(), p = this.pitch || 0;
+    return new THREE.Vector3(Math.cos(ch) * Math.cos(p), Math.sin(p), Math.sin(ch) * Math.cos(p));
+  }
+  // 照準の先にいる敵（少しだけ吸い付く）
+  aimTarget(fw) {
+    const o = this.camera.position;
+    let best = null, ba = 0.045;
+    for (const e of this.enemies) {
+      if (e.sink || e.far) continue;
+      const v = new THREE.Vector3(e.x - o.x, 2.5 - o.y, e.z - o.z);
+      const d = v.length(); if (d > 420) continue;
+      const a = v.normalize().angleTo(fw) - Math.atan((e.r * 0.8) / d);
+      if (a < ba) { ba = a; best = e; }
+    }
+    return best;
+  }
+  updateCrosshair(fw) {
+    const el = $('crosshair'), on = this.aimTarget(fw);
+    el.classList.toggle('on', !!on);
+  }
   // 追い風なら速く、向かい風なら遅く
   windMul(h) { return 1 + WIND.power * Math.cos(h - WIND.dir); }
   // その場所の潮の流れ（単位/秒）。phase > 0 が上げ潮
@@ -781,24 +807,24 @@ export class Sea {
     if (I.pressed('KeyV') || I.toggleView) { I.toggleView = false; this.view = this.view === 'bow' ? 'chase' : 'bow'; this.camInit = false; }
     if (I.down('KeyQ')) this.camYaw -= dt * 1.5;
     if (I.down('KeyE') && !this.canLand) this.camYaw += dt * 1.5;
-    if (I.lookDX) { this.camYaw += I.lookDX * 0.006; I.lookDX = 0; }
+    if (I.lookDX) { this.camYaw += I.lookDX * 0.004; I.lookDX = 0; }
     const cam = this.camera;
     this.gun.visible = this.view === 'bow';
     if (this.ship.userData.bowsprit) this.ship.userData.bowsprit.visible = this.view !== 'bow'; // 目の前をふさがないように
     if (this.view === 'bow') {
-      this.camYaw = clamp(this.camYaw, -2.4, 2.4);
-      if (!I.down('KeyQ') && !I.down('KeyE') && !I.looking) this.camYaw *= Math.exp(-dt * 0.15);
-      // 船首の甲板、目の高さ
+      if (I.lookDY) { this.pitch = clamp((this.pitch || 0) - I.lookDY * 0.004, -0.35, 0.25); I.lookDY = 0; }
+      this.camYaw = clamp(this.camYaw, -2.6, 2.6);
+      // 船首の低い所から（舳先の内側、目の高さ）
       const ud = this.ship.userData;
-      const eye = ud.inner.localToWorld(new THREE.Vector3(0, ud.deckY + 3.2, ud.len * 0.4)); // 船首楼の上
+      const eye = ud.inner.localToWorld(new THREE.Vector3(0, ud.deckY + 1.5, ud.len * 0.44));
       cam.position.copy(eye);
-      const ch = this.camHeading();
-      cam.up.set(Math.sin(P.roll) * 0.3 * Math.cos(ch), 1, Math.sin(P.roll) * 0.3 * Math.sin(ch));
-      cam.lookAt(eye.x + Math.cos(ch) * 100, eye.y - 4, eye.z + Math.sin(ch) * 100);
-      cam.up.set(0, 1, 0);
+      const fw = this.aimDir();
+      cam.lookAt(eye.x + fw.x * 100, eye.y + fw.y * 100, eye.z + fw.z * 100);
+      if (cam.fov !== 48) { cam.fov = 48; cam.updateProjectionMatrix(); }
       I.wheel = 0;
       return;
     }
+    if (cam.fov !== 62) { cam.fov = 62; cam.updateProjectionMatrix(); }
     if (I.wheel) { this.camDist = clamp(this.camDist * (1 + I.wheel * 0.001), 30, 220); I.wheel = 0; }
     this.camYaw *= Math.exp(-dt * 0.4);
     const ch = this.camHeading();
@@ -829,6 +855,14 @@ export class Sea {
 
   aimPoint(I) {
     const P = this.P;
+    if (this.view === 'bow') {
+      const fw = this.aimDir(), o = this.camera.position;
+      const tg = this.aimTarget(fw);
+      if (tg) return { x: tg.x, z: tg.z, lock: tg };
+      if (fw.y < -0.005) { const t = -o.y / fw.y; if (t < 320) return { x: o.x + fw.x * t, z: o.z + fw.z * t }; }
+      const l = Math.hypot(fw.x, fw.z) || 1;
+      return { x: o.x + fw.x / l * 220, z: o.z + fw.z / l * 220 };
+    }
     if (I.mouseAim) {
       const ray = new THREE.Raycaster();
       ray.setFromCamera(new THREE.Vector2((I.mx / innerWidth) * 2 - 1, -(I.my / innerHeight) * 2 + 1), this.camera);
@@ -867,10 +901,13 @@ export class Sea {
     this.gun.userData.kick = 1;
     if (this.view === 'bow') {
       const mz = this.gun.userData.muzzle.getWorldPosition(new THREE.Vector3());
-      const aa = Math.atan2(aim.z - mz.z, aim.x - mz.x);
+      let fw = this.aimDir();
+      const tg = this.aimTarget(fw);
+      if (tg) fw = new THREE.Vector3(tg.x + Math.cos(tg.h) * tg.v * 0.3 - mz.x, 2.5 - mz.y, tg.z + Math.sin(tg.h) * tg.v * 0.3 - mz.z).normalize();
       for (let i = 0; i < 4; i++) {
-        const sa = aa + rand(-0.035, 0.035);
-        this.addBullet(mz.x + rand(-1, 1), mz.y - 0.3, mz.z + rand(-1, 1), Math.cos(sa) * 170, 0, Math.sin(sa) * 170, 'p', 14, 2.1);
+        const sp = 190, j = 0.012;
+        const b = this.addBullet(mz.x, mz.y - 0.1, mz.z, (fw.x + rand(-j, j)) * sp, (fw.y + rand(-j, j) + 0.01) * sp, (fw.z + rand(-j, j)) * sp, 'p', 14, 2.0);
+        b.g = 4;
       }
       this.sprite('#ffd070', mz.x, mz.y, mz.z, 1.2, 0.12, 0, 0, 0, 0);
       this.smoke(mz.x, mz.y, mz.z, 3);
@@ -906,7 +943,9 @@ export class Sea {
     m.position.set(x, y, z);
     if (from === 'bomb') m.scale.setScalar(2);
     this.scene.add(m);
-    this.bullets.push({ m, x, y, z, vx, vy, vz, from, dmg, life });
+    const b = { m, x, y, z, vx, vy, vz, from, dmg, life };
+    this.bullets.push(b);
+    return b;
   }
   updateBullets(dt) {
     const P = this.P;
@@ -914,6 +953,7 @@ export class Sea {
       b.life -= dt;
       b.x += b.vx * dt; b.z += b.vz * dt;
       if (b.from === 'bomb') { b.vy -= 40 * dt; b.y += b.vy * dt; }
+      else if (b.g) { b.vy -= b.g * dt; b.y += b.vy * dt; if (b.y < 0) { b.life = 0; this.splashAt(b.x, b.z, 0.6); } }
       else b.y = Math.max(0.6, b.y - dt * 0.4);
       b.m.position.set(b.x, b.y, b.z);
       if (b.from === 'bomb') {
@@ -928,7 +968,7 @@ export class Sea {
       if (b.from === 'p') {
         for (const e of this.enemies) {
           if (e.sink) continue;
-          if (Math.hypot(e.x - b.x, e.z - b.z) < e.r + 0.8) { b.life = 0; this.hurtEnemy(e, b.dmg); break; }
+          if (Math.hypot(e.x - b.x, e.z - b.z) < e.r + 0.8 && b.y < 9) { b.life = 0; this.hurtEnemy(e, b.dmg); break; }
         }
       } else if (Math.hypot(P.x - b.x, P.z - b.z) < PR) {
         b.life = 0; this.hurtHull(b.dmg, b.x, b.z);

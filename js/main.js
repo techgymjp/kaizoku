@@ -42,10 +42,16 @@ addEventListener('keydown', (e) => {
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
-canvas.addEventListener('mousemove', (e) => { I.mx = e.clientX; I.my = e.clientY; if (Math.abs(e.movementX) + Math.abs(e.movementY) > 2) I.mouseAim = true; });
+canvas.addEventListener('mousemove', (e) => {
+  I.mx = e.clientX; I.my = e.clientY;
+  if (document.pointerLockElement === canvas) { I.lookDX = (I.lookDX || 0) + e.movementX; I.lookDY = (I.lookDY || 0) + e.movementY; return; }
+  if (Math.abs(e.movementX) + Math.abs(e.movementY) > 2) I.mouseAim = true;
+});
+const bowAim = () => mode === 'sea' && sea && sea.view === 'bow';
 canvas.addEventListener('mousedown', (e) => {
   Sfx.init();
-  I.mx = e.clientX; I.my = e.clientY; I.mouseAim = true;
+  I.mx = e.clientX; I.my = e.clientY; I.mouseAim = !bowAim();
+  if (G && G.state === 'play' && bowAim() && document.pointerLockElement !== canvas && !isTouch) { try { canvas.requestPointerLock(); } catch (er) { /* 使えない環境 */ } return; }
   if (G && G.state === 'play') { if (e.button === 0) primary(); if (e.button === 2) secondary(); }
 });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -77,8 +83,9 @@ canvas.addEventListener('wheel', (e) => { I.wheel += e.deltaY; e.preventDefault(
   };
   // 右側をなぞって見回す（ボタン以外）
   let lookId = null, lx = 0;
-  canvas.addEventListener('touchstart', (e) => { for (const t of e.changedTouches) if (t.clientX > innerWidth * 0.45 && lookId === null) { lookId = t.identifier; lx = t.clientX; I.looking = true; } }, { passive: true });
-  canvas.addEventListener('touchmove', (e) => { for (const t of e.changedTouches) if (t.identifier === lookId) { I.lookDX = (I.lookDX || 0) + (t.clientX - lx); lx = t.clientX; } }, { passive: true });
+  canvas.addEventListener('touchstart', (e) => { for (const t of e.changedTouches) if (t.clientX > innerWidth * 0.45 && lookId === null) { lookId = t.identifier; lx = t.clientX; ly = t.clientY; I.looking = true; } }, { passive: true });
+  let ly = 0;
+  canvas.addEventListener('touchmove', (e) => { for (const t of e.changedTouches) if (t.identifier === lookId) { I.lookDX = (I.lookDX || 0) + (t.clientX - lx) * 1.6; I.lookDY = (I.lookDY || 0) + (t.clientY - ly) * 1.6; lx = t.clientX; ly = t.clientY; } }, { passive: true });
   const lend = (e) => { for (const t of e.changedTouches) if (t.identifier === lookId) { lookId = null; I.looking = false; } };
   canvas.addEventListener('touchend', lend); canvas.addEventListener('touchcancel', lend);
   bind($('btnSword'), () => { primary(); I.mouseAim = false; });
@@ -196,13 +203,14 @@ function restart(toTitle) {
 }
 function togglePause() {
   if (!G) return;
-  if (G.state === 'play') { G.state = 'pause'; $('pause').classList.remove('hidden'); }
+  if (G.state === 'play') { G.state = 'pause'; $('pause').classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); }
   else if (G.state === 'pause') { G.state = 'play'; $('pause').classList.add('hidden'); }
 }
 
 // ---- 上陸と乗船 ----
 async function land(c) {
   if (G.state !== 'play') return;
+  if (document.pointerLockElement) document.exitPointerLock();
   G.state = 'loading';
   const name = islandName(c.isl);
   setLoad(L(`${name}に上陸します……`, `Landing on ${name}…`));
@@ -291,7 +299,7 @@ $('shareLine').addEventListener('click', () => open('https://social-plugins.line
 function updateHelp() {
   const sea = mode === 'sea';
   $('seaHelp').innerHTML = sea
-    ? L('<kbd>W</kbd><kbd>S</kbd>帆 <kbd>A</kbd><kbd>D</kbd>舵 <kbd>J</kbd>鉄砲 <kbd>K</kbd>焙烙玉 <kbd>Space</kbd>全速 <kbd>E</kbd>上陸 <kbd>V</kbd>視点', '<kbd>W</kbd><kbd>S</kbd> sail <kbd>A</kbd><kbd>D</kbd> steer <kbd>J</kbd> guns <kbd>K</kbd> bomb <kbd>Space</kbd> full sail <kbd>E</kbd> land <kbd>V</kbd> view')
+    ? L('<kbd>W</kbd><kbd>S</kbd>帆 <kbd>A</kbd><kbd>D</kbd>舵 <kbd>J</kbd>鉄砲 <kbd>K</kbd>焙烙玉 <kbd>Space</kbd>全速 <kbd>E</kbd>上陸 <kbd>V</kbd>視点　クリックでマウス照準（Esc で解除）', '<kbd>W</kbd><kbd>S</kbd> sail <kbd>A</kbd><kbd>D</kbd> steer <kbd>J</kbd> guns <kbd>K</kbd> bomb <kbd>Space</kbd> full sail <kbd>E</kbd> land <kbd>V</kbd> view · click to aim with the mouse (Esc to release)')
     : L('<kbd>WASD</kbd>移動 <kbd>J</kbd>刀 <kbd>K</kbd>槍 <kbd>Space</kbd>駆 <kbd>Q</kbd><kbd>E</kbd>視点 <kbd>E</kbd>乗船', '<kbd>WASD</kbd> move <kbd>J</kbd> sword <kbd>K</kbd> spear <kbd>Space</kbd> dash <kbd>Q</kbd><kbd>E</kbd> camera <kbd>E</kbd> board');
   const lab = sea ? [L('鉄砲', 'Guns'), L('焙烙', 'Bomb'), L('全速', 'Full'), L('上陸', 'Land')] : [L('刀', 'Sword'), L('槍', 'Spear'), L('駆', 'Dash'), L('乗船', 'Board')];
   ['btnSword', 'btnSpear', 'btnDash', 'btnLand'].forEach((id, i) => { $(id).textContent = lab[i]; delete $(id).dataset.en; });

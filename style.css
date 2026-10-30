@@ -271,3 +271,14 @@ body.touch #minimap { width: min(44vw, 300px); height: min(31.4vw, 214px); left:
 @media (max-height: 500px) { #minimap, body.touch #minimap { width: 240px; height: 171px; } }
 @media (max-width: 600px) { #minimap, body.touch #minimap { width: 46vw; height: 32.8vw; top: auto; bottom: 12px; left: 10px; right: auto; } }
 #msgs { z-index: 11; }
+/* 照準 */
+#crosshair { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px 0 0 -22px; pointer-events: none; }
+#crosshair i { position: absolute; background: rgba(255,255,255,.9); box-shadow: 0 0 3px #000; }
+#crosshair i:nth-child(1) { left: 21px; top: 0; width: 2px; height: 14px; }
+#crosshair i:nth-child(2) { left: 21px; bottom: 0; width: 2px; height: 14px; }
+#crosshair i:nth-child(3) { top: 21px; left: 0; height: 2px; width: 14px; }
+#crosshair i:nth-child(4) { top: 21px; right: 0; height: 2px; width: 14px; }
+#crosshair b { position: absolute; left: 19px; top: 19px; width: 6px; height: 6px; border-radius: 50%; border: 1px solid rgba(255,255,255,.9); }
+#crosshair.on i, #crosshair.on b { background: #ff3a2a; border-color: #ff3a2a; }
+#crosshair.on { transform: scale(1.15); }
+.tag { z-index: 2; } .tag.isl { z-index: 1; opacity: .9; } .tag.boss, .tag.ghost { z-index: 3; }

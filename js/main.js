@@ -240,9 +240,10 @@ function board() {
   if (!island) return;
   const raided = island.treasure.taken;
   if (raided && !G.raided.includes(island.isl.id)) G.raided.push(island.isl.id);
+  const leftId = island.isl.id;
   island.dispose(); island = null;
   mode = 'sea';
-  sea.resume(island ? island.isl.id : null);
+  sea.resume(leftId);
   G.hp = Math.min(G.maxHp, G.hp + 60); // 船で一息つく
   msg(L('船に戻った。一息ついて体力が少し戻った。', 'Back aboard. You catch your breath and recover a little.'), 'sys', 4);
   Sfx.bgm(G.final ? 'final' : 'sea');

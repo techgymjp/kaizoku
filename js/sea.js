@@ -862,7 +862,7 @@ export class Sea {
     else if (G.state === 'play') {
       // 財宝の残る島の港に入ったら、自動で上陸する
       const nh = this.nearestHarbor();
-      if (nh && nh.d < 45 && (this.noAuto !== nh.isl.id || Math.hypot(P.x - this.noAutoX, P.z - this.noAutoZ) > 180)) {
+      if (nh && nh.d < 45 && (this.noAuto !== nh.isl.id || Math.hypot(P.x - this.noAutoX, P.z - this.noAutoZ) > 250)) {
         const h = nh.isl.harbor;
         msg(L(`${nh.isl.name}の港に入った——上陸！`, `Entering the port of ${islandName(nh.isl)} — landing!`), 'sys', 3);
         G.land({ isl: nh.isl, px: h.lx, py: h.ly, shipPx: P.x / SEA_K, shipPy: P.z / SEA_K, heading: P.h, d: 0 });
@@ -1477,6 +1477,8 @@ export class Sea {
   // 島から戻ったとき
   resume(islId) {
     this.noAuto = islId; this.noAutoX = this.P.x; this.noAutoZ = this.P.z;
+    // 舳先を沖（いちばん深い向き）へ向けて出す
+    { const P = this.P; let best = P.h, bd = 1e9; for (let k = 0; k < 16; k++) { const ang = (k / 16) * TAU; const h = hSea(P.x + Math.cos(ang) * 60, P.z + Math.sin(ang) * 60); if (h < bd) { bd = h; best = ang; } } P.h = best; }
     this.updateChunks(true);
     this.floats.clear();
     this.P.v = 0; this.P.sail = 1;

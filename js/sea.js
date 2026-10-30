@@ -456,7 +456,6 @@ export class Sea {
     if (I.down('KeyD') || I.down('ArrowRight')) turn += 1;
     if (I.joy) {
       // スティック：向けた方向へ舵を切り、倒した量で帆を張る
-      const want = Math.atan2(I.joy.y, I.joy.x) + this.camYaw + Math.PI / 2 + Math.PI / 2 - Math.PI / 2;
       const a = Math.atan2(I.joy.y, I.joy.x);
       const camH = this.camHeading();
       const target = camH + a + Math.PI / 2;

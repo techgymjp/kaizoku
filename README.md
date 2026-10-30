@@ -4,7 +4,7 @@
 瀬戸内海の地形・島々・港・坂・社寺・家並みを、国土地理院の地理院タイルから 3D で作っています。
 
 `index.html` を Web サーバーで開けば遊べます（ビルド不要。`python3 -m http.server` など）。
-`main` に push すると GitHub Actions（`.github/workflows/pages.yml`）が GitHub Pages に公開します。
+`main` に push すると GitHub Actions（`.github/workflows/pages.yml`）が GitHub Pages に公開します（最初に一度だけ、リポジトリの Settings → Pages → Build and deployment の Source を「GitHub Actions」にしてください）。
 
 ## 遊び方
 

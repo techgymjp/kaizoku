@@ -326,3 +326,13 @@ body.touch #minimap { width: min(44vw, 300px); height: min(31.4vw, 214px); left:
 .tag.mk.gold span { color: #ffd24a; font-size: 30px; }
 .tag.mk.ship span { color: #fff; font-size: 26px; }
 .tag.mk.ship-e span { color: #ff3a2a; font-size: 24px; }
+/* 島ナビを少し小さく（スマホでは体力のゲージに重ならないように） */
+#harborNav #navArrow { width: 42px; height: 42px; font-size: 24px; }
+#harborNav #navName { font-size: 22px; } #harborNav #navInfo { font-size: 21px; }
+@media (max-width: 600px) {
+  .hud-right #harborNav { max-width: 50vw; gap: 7px; padding: 4px 12px 4px 4px; border-width: 3px; }
+  #harborNav #navArrow { width: 34px; height: 34px; font-size: 19px; }
+  #harborNav #navName { font-size: 18px; } #harborNav #navInfo { font-size: 17px; }
+  .hud-right .route { width: 50vw; }
+  .hud-left { width: 40vw; }
+}

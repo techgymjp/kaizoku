@@ -1,7 +1,7 @@
 // 海モード：瀬戸内海を海賊船で西へ。敵の海賊船を鉄砲で撃ち、島に上陸する
 import * as THREE from './vendor/three.module.min.js';
 import { DEM, SEA_K, VEX, hPx, hSea, ll2sea, sea2ll, ll2px, isLandPx, compAt, nearestLandPx } from './geo.js';
-import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, FINAL_LON, DANNOURA, shipName, WIND, TIDE, STRAITS } from './data.js';
+import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, FINAL_LON, DANNOURA, shipName, WIND, TIDE, STRAITS, HARBOR_HINT } from './data.js';
 import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
@@ -120,6 +120,7 @@ export class Sea {
     this.camera.add(this.gun);
     this.buildIslets();
     this.buildNames();
+    this.buildHarbors();
     this.bulletGeo = new THREE.SphereGeometry(0.5, 6, 4);
     this.bulletMat = new THREE.MeshBasicMaterial({ color: '#2a2a2a' });
     this.bombMat = new THREE.MeshBasicMaterial({ color: '#ff8a2a' });
@@ -323,6 +324,46 @@ export class Sea {
       this.marks.push({ l, x, z, o, seen: false });
     }
   }
+  // 島ごとの港：集落（地名の位置）にいちばん近い岸
+  buildHarbors() {
+    const beamGeo = new THREE.CylinderGeometry(3, 5, 160, 12, 1, true);
+    this.beamMat = new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, fog: false });
+    for (const isl of this.G.islands) {
+      const hint = HARBOR_HINT[isl.id];
+      const [gx, gy] = hint ? ll2px(hint[0], hint[1]) : ll2px(isl.lon, isl.lat);
+      let best = null, bd = 1e9;
+      const R = 30;
+      for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+        const x = Math.round(gx) + dx, y = Math.round(gy) + dy;
+        if (!isLandPx(x, y)) continue;
+        if (!isl.merged && compAt(x, y) !== isl.comp) continue;
+        // 海に面した岸か
+        let sea = null;
+        for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!isLandPx(x + ox, y + oy) && hPx(x + ox * 2, y + oy * 2) < 0) { sea = [x + ox, y + oy, ox, oy]; break; }
+        if (!sea) continue;
+        const d = Math.hypot(x - gx, y - gy);
+        if (d < bd) { bd = d; best = { lx: x, ly: y, sx: sea[0], sy: sea[1], ox: sea[2], oy: sea[3] }; }
+      }
+      if (!best) continue;
+      // 船を止める海の上（岸から少し沖）
+      let wx = best.sx + 0.5, wy = best.sy + 0.5;
+      for (let k = 0; k < 4 && hPx(wx + best.ox, wy + best.oy) < -2; k++) { wx += best.ox * 0.5; wy += best.oy * 0.5; }
+      isl.harbor = { x: wx * SEA_K, z: wy * SEA_K, lx: best.lx, ly: best.ly };
+      const beam = new THREE.Mesh(beamGeo, this.beamMat);
+      beam.position.set(isl.harbor.x, 80, isl.harbor.z); beam.visible = false;
+      this.scene.add(beam); isl.harbor.beam = beam;
+    }
+  }
+  // いちばん近い、財宝の残る島の港
+  nearestHarbor() {
+    const P = this.P; let best = null, bd = 1e9;
+    for (const isl of this.G.islands) {
+      if (!isl.harbor || this.G.taken.has(isl.id)) continue;
+      const d = Math.hypot(isl.harbor.x - P.x, isl.harbor.z - P.z);
+      if (d < bd) { bd = d; best = isl; }
+    }
+    return best ? { isl: best, d: bd } : null;
+  }
   // 地図に載っている島の名前（無人島を含む）
   buildNames() {
     const inh = this.G.islands.map((i) => ({ n: i.name, x: (i.merged ? i.px : i.cx) * SEA_K, z: (i.merged ? i.py : i.cy) * SEA_K }));
@@ -446,6 +487,7 @@ export class Sea {
       g.beginPath(); g.arc(x, y, taken ? 3.5 : 5, 0, TAU); g.fill(); g.stroke();
       g.font = '700 12px "Shippori Mincho", serif'; g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,0.75)'; g.fillStyle = taken ? '#ccc' : '#fff';
       const nm = islandName(isl); g.strokeText(nm, x + 7, y + 4); g.fillText(nm, x + 7, y + 4);
+      if (!taken && isl.harbor) { const hx = tx(isl.harbor.x), hy = ty(isl.harbor.z); g.font = '700 15px serif'; g.lineWidth = 3; g.strokeText('⚓', hx - 7, hy + 6); g.fillStyle = '#ffd24a'; g.fillText('⚓', hx - 7, hy + 6); }
     }
     for (const e of this.enemies) { if (e.sink || e.far) continue; g.fillStyle = e.boss ? '#ff3a3a' : e.guard && !e.pursue ? '#ffb0a0' : '#ff6a4a'; g.fillRect(tx(e.x) - 3, ty(e.z) - 3, 6, 6); }
     // ゴール
@@ -652,6 +694,7 @@ export class Sea {
     if (P.x < G.minX) G.minX = P.x;
     P.x = clamp(P.x, 30, DEM.w * SEA_K - 30); P.z = clamp(P.z, 30, DEM.h * SEA_K - 30);
     if (P.inv > 0) P.inv -= dt;
+    if (G.t - G.lastHurt > 4) G.hp = Math.min(G.maxHp, G.hp + 1.5 * dt); // 小早川と同じ自然回復
 
     // 船の姿
     const s = this.ship;
@@ -737,10 +780,14 @@ export class Sea {
     if (this.landCheckT <= 0) { this.landCheckT = 0.25; this.canLand = this.findLanding(); this.updateLandPrompt(); }
     const cl = this.canLand;
     if (cl && cl.isl && (I.pressed('KeyE') || I.land)) { I.land = false; G.land(cl); }
-    else if (cl && cl.isl && cl.d <= 3.2 && !G.taken.has(cl.isl.id) && G.state === 'play' && (this.noAuto !== cl.isl.id || Math.hypot(P.x - this.noAutoX, P.z - this.noAutoZ) > 180)) {
-      // 港（岸）に入ったら、自動で上陸する
-      msg(L(`${cl.isl.name}の港に入った——上陸！`, `Entering port at ${islandName(cl.isl)} — landing!`), 'sys', 3);
-      G.land(cl);
+    else if (G.state === 'play') {
+      // 財宝の残る島の港に入ったら、自動で上陸する
+      const nh = this.nearestHarbor();
+      if (nh && nh.d < 45 && (this.noAuto !== nh.isl.id || Math.hypot(P.x - this.noAutoX, P.z - this.noAutoZ) > 180)) {
+        const h = nh.isl.harbor;
+        msg(L(`${nh.isl.name}の港に入った——上陸！`, `Entering the port of ${islandName(nh.isl)} — landing!`), 'sys', 3);
+        G.land({ isl: nh.isl, px: h.lx, py: h.ly, shipPx: P.x / SEA_K, shipPy: P.z / SEA_K, heading: P.h, d: 0 });
+      }
     }
     I.land = false;
     // 音
@@ -749,6 +796,9 @@ export class Sea {
     Sfx.sea(0.25 + Math.min(0.25, Math.abs(P.v) / 80));
     // 空の色（大坂の朝から壇ノ浦の夕暮れへ）
     this.updateSky(G.progress, G.final);
+    for (const isl of G.islands) if (isl.harbor) { const b = isl.harbor.beam; const d = Math.hypot(isl.harbor.x - P.x, isl.harbor.z - P.z); b.visible = d < 3500 && !G.taken.has(isl.id); if (b.visible) b.scale.set(1 + d / 1500, 1, 1 + d / 1500); }
+    this.beamMat.opacity = 0.18 + Math.sin(this.t * 3) * 0.06;
+    this.nav = this.nearestHarbor();
     this.updateChunks(false);
     this.updateCamera(dt, I);
     this.water.position.set(Math.round(this.camera.position.x / 50) * 50, 0, Math.round(this.camera.position.z / 50) * 50);
@@ -1103,13 +1153,13 @@ export class Sea {
   hurtHull(dmg, fx, fz, silent) {
     const G = this.G;
     if (G.state !== 'play') return;
-    G.hull -= dmg;
+    G.hp -= dmg;
     G.lastHurt = G.t;
     this.floats.add(this.P.x, 14, this.P.z, '-' + Math.round(dmg), '#ff5a4a');
     if (!silent) Sfx.crack(0.35);
     flash('rgba(200,0,0,0.18)');
     this.camShake = 0.6;
-    if (G.hull <= 0) { G.hull = 0; G.die(L('船が沈んだ', 'Your ship went down')); }
+    if (G.hp <= 0) { G.hp = 0; G.die(L('海の上で討死', 'Fell in battle at sea')); }
   }
   updateEnemy(e, dt) {
     const P = this.P;
@@ -1255,10 +1305,9 @@ export class Sea {
       if (Math.hypot(l.x - P.x, l.z - P.z) < PR + 4) {
         l.taken = true;
         const fix = l.kind === 'big' ? 60 : 25;
-        G.hull = Math.min(G.maxHull, G.hull + fix);
         G.hp = Math.min(G.maxHp, G.hp + fix);
         G.gold += l.kind === 'big' ? 60 : 15;
-        this.floats.add(P.x, 8, P.z, L(`兵糧樽 船体+${fix}`, `Supply barrel: hull +${fix}`), '#7dff8a');
+        this.floats.add(P.x, 8, P.z, L(`兵糧樽 体力+${fix}`, `Supply barrel: HP +${fix}`), '#7dff8a');
         Sfx.coin();
       }
     }
@@ -1316,10 +1365,11 @@ export class Sea {
     }
     near.sort((p, q) => p[0] - q[0]);
     const narrow = innerWidth < 700;
-    for (const [d, isl, cx, cz] of near.slice(0, narrow ? 4 : 8)) {
+    for (const [d, isl, cx0, cz0] of near.slice(0, narrow ? 4 : 8)) {
       const taken = this.G.taken.has(isl.id);
-      const label = islandName(isl) + (taken ? L('　財宝は奪った', ' · raided') : narrow ? ' ⚓' : L('　⚓上陸できる・財宝あり', ' · ⚓ land here · treasure'));
-      this.tags.put(cam, cx, (isl.maxH || 30) * VEX + 6, cz, label, null, taken ? 'isl done' : 'isl');
+      const cx = !taken && isl.harbor ? isl.harbor.x : cx0, cz = !taken && isl.harbor ? isl.harbor.z : cz0;
+      const label = islandName(isl) + (taken ? L('　財宝は奪った', ' · raided') : narrow ? ' ⚓' : L(' ⚓港', ' ⚓ port'));
+      this.tags.put(cam, cx, taken ? (isl.maxH || 30) * VEX + 6 : 40, cz, label, null, taken ? 'isl done' : 'isl');
     }
     const un = [];
     for (const u of this.uninhabited || []) { const d = Math.hypot(u.x - P.x, u.z - P.z); if (d < 1100) un.push([d, u]); }

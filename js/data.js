@@ -188,3 +188,6 @@ export const ISLAND_NOTES_EN = {
   '祝島-35': 'A village of stacked-stone walls',
   '姫島-44': 'Island of the Seven Wonders off Kunisaki',
 };
+
+// 港の位置を指定する島（無ければ、地名の位置にいちばん近い岸）
+export const HARBOR_HINT = { '淡路島-28': [135.019, 34.592], '小豆島-37': [134.181, 34.484], '屋代島-35': [132.230, 33.958], '江田島-34': [132.444, 34.208], '倉橋島-34': [132.540, 34.180] };

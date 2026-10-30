@@ -186,7 +186,7 @@ function start() {
   Sfx.horn(0.4);
   banner(L('姫路港より出航', 'Setting sail from Himeji'), L('追い風を受けて西へ——目指すは下関', 'A tailwind blows west — for Shimonoseki'));
   msg(L('帆を張れ！ 風は西へ吹いている。潮の流れに気をつけろ。', 'Raise the sail! The wind blows west — mind the tidal currents.'), 'sys', 5);
-  setTimeout(() => msg(L('⚓の島には財宝がある。岸（港）に入れば自動で上陸する。', 'Islands marked ⚓ hold treasure. Sail into their shore to land automatically.'), 'sys', 6), 4000);
+  setTimeout(() => msg(L('金色の光の柱が港。⚓の港に入れば自動で上陸し、財宝を奪いに行ける。', 'Golden pillars of light mark the ports. Sail into a ⚓ port to land and raid its treasure.'), 'sys', 6), 4000);
   updateHelp();
 }
 function restart(toTitle) {
@@ -240,8 +240,8 @@ function board() {
   island.dispose(); island = null;
   mode = 'sea';
   sea.resume(island ? island.isl.id : null);
-  G.hull = Math.min(G.maxHull, G.hull + 40); // 港で少し修理
-  msg(L('船に戻った。港で船体を少し直した。', 'Back aboard. The hull was patched up in port.'), 'sys', 4);
+  G.hp = Math.min(G.maxHp, G.hp + 60); // 船で一息つく
+  msg(L('船に戻った。一息ついて体力が少し戻った。', 'Back aboard. You catch your breath and recover a little.'), 'sys', 4);
   Sfx.bgm(G.final ? 'final' : 'sea');
   updateHelp();
 }
@@ -301,14 +301,14 @@ function updateHelp() {
   $('seaHelp').innerHTML = sea
     ? L('<kbd>W</kbd><kbd>S</kbd>帆 <kbd>A</kbd><kbd>D</kbd>舵 <kbd>J</kbd>鉄砲 <kbd>K</kbd>大砲 <kbd>Space</kbd>全速 <kbd>E</kbd>上陸　鉄砲は船の向きに撃つ', '<kbd>W</kbd><kbd>S</kbd> sail <kbd>A</kbd><kbd>D</kbd> steer <kbd>J</kbd> guns <kbd>K</kbd> cannon <kbd>Space</kbd> full sail <kbd>E</kbd> land · guns fire where the ship points')
     : L('<kbd>W</kbd><kbd>S</kbd>前後 <kbd>A</kbd><kbd>D</kbd>向き <kbd>J</kbd>刀 <kbd>K</kbd>槍 <kbd>Space</kbd>駆 <kbd>E</kbd>乗船', '<kbd>W</kbd><kbd>S</kbd> forward/back <kbd>A</kbd><kbd>D</kbd> turn <kbd>J</kbd> sword <kbd>K</kbd> spear <kbd>Space</kbd> dash <kbd>E</kbd> board');
-  const lab = sea ? [L('鉄砲', 'Guns'), L('大砲', 'Cannon'), L('全速', 'Full'), L('上陸', 'Land')] : [L('刀', 'Sword'), L('槍', 'Spear'), L('駆', 'Dash'), L('乗船', 'Board')];
+  const lab = sea ? [L('鉄砲', 'Guns'), L('大砲', 'Cannon'), L('全速', 'Full'), ''] : [L('刀', 'Sword'), L('槍', 'Spear'), L('駆', 'Dash'), L('乗船', 'Board')];
+  $('btnLand').classList.toggle('hidden', sea);
   ['btnSword', 'btnSpear', 'btnDash', 'btnLand'].forEach((id, i) => { $(id).textContent = lab[i]; delete $(id).dataset.en; });
 }
 let hudT = 0;
 function updateHUD(dt) {
   hudT -= dt; if (hudT > 0) return; hudT = 0.1;
   $('hpbar').style.width = (G.hp / G.maxHp) * 100 + '%'; $('hpnum').textContent = Math.ceil(G.hp);
-  $('hullbar').style.width = (G.hull / G.maxHull) * 100 + '%'; $('hullnum').textContent = Math.ceil(G.hull);
   $('stbar').style.width = (G.st / G.maxSt) * 100 + '%'; $('stbar').classList.toggle('low', G.st < 15);
   $('hGold').textContent = G.gold.toLocaleString();
   $('hIsl').textContent = `${G.taken.size}/${islands.length}`;
@@ -318,6 +318,13 @@ function updateHUD(dt) {
   else if (sea && sea.zone) place = zoneName(sea.zone);
   if (G.final && !G.finalCleared) place = L(`壇ノ浦　残り ${G.finalLeft ?? '?'} 艘`, `Dan-no-ura: ${G.finalLeft ?? '?'} ships left`);
   $('hPlace').textContent = place;
+  const nv = $('harborNav'), nh = mode === 'sea' && sea ? sea.nav : null;
+  nv.classList.toggle('hidden', !nh || G.final);
+  if (nh) {
+    const P = sea.P, h = nh.isl.harbor;
+    const rel = Math.atan2(h.z - P.z, h.x - P.x) - P.h; // 船の向きから見た方向
+    nv.innerHTML = `<i style="transform: rotate(${(rel * 180) / Math.PI - 90}deg)">➤</i>${L('最寄りの港', 'Nearest port')}：<b>${islandName(nh.isl)}</b> ${(nh.d / 100).toFixed(1)}km`;
+  }
   const fr = mode === 'sea' && sea && sea.front && !sea.front.e.sink ? sea.front : null;
   const tg = $('target');
   tg.classList.toggle('hidden', !fr);

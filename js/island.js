@@ -4,7 +4,7 @@ import * as THREE from './vendor/three.module.min.js';
 import { DEM, hPx, px2ll, lon2gx, lat2gy, gx2lon, gy2lat, loadImage, fetchWithTimeout, SEA_FLOOR } from './geo.js';
 import { LANDMARKS, ISLAND_NOTES, ISLAND_NOTES_EN, ISLAND_BOSSES, zoneAt } from './data.js';
 import { decodeMVT } from './mvt.js';
-import { makeWarrior, poseWarrior, makeTorii, makeHall, makePagoda, makeJoyato, makeChest, makeOnigiri, makeShip, makeDeer, makeRabbit, makeGangi, makePumpkin, mat } from './models.js';
+import { makeCrewman, makeWarrior, poseWarrior, makeTorii, makeHall, makePagoda, makeJoyato, makeChest, makeOnigiri, makeShip, makeDeer, makeRabbit, makeGangi, makePumpkin, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
 import { L, islandName } from './i18n.js';
@@ -581,24 +581,50 @@ export class Island {
     const boss = { name: L(`${cap.ja}（${this.isl.name}の頭目）`, `${cap.en} (boss of ${islandName(this.isl)})`), short: L(cap.ja, cap.en), hp: 230 + prog * 260, pow: 18 + prog * 10, brave: Math.random() < 0.5 + prog * 0.3 };
     this.boss = boss;
     const place = (cx, cz, r) => { for (let k = 0; k < 60; k++) { const a = rand(0, TAU), d = rand(2, r); const x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d; if (this.canWalk(x, z)) return [x, z]; } return null; };
-    if (!T.taken) {
-      const g = place(T.x, T.z, 10); if (g) this.addEnemy('gen', g[0], g[1], color, 'guard');
-      const n = Math.round(6 + prog * 8);
-      for (let i = 0; i < n; i++) { const p = place(T.x, T.z, 24); if (p) this.addEnemy(i < 2 + prog * 3 ? 'gun' : 'ashi', p[0], p[1], color, 'guard'); }
+    // 小早川のように、頭目が率いる軍勢がいくつも布陣する
+    this.units = [];
+    const area = this.isl.areaKm2 || 3;
+    const nUnits = clamp(Math.round(3 + prog * 3 + Math.min(2, area / 20)), 3, 7);
+    const used = new Set([cap.ja]);
+    for (let u = 0; u < nUnits; u++) {
+      let cx, cz;
+      if (u === 0) { cx = T.x; cz = T.z; } // 財宝の守り
+      else {
+        let ok = false;
+        for (let k = 0; k < 80 && !ok; k++) {
+          const a = rand(0, TAU), d = rand(70, 380);
+          cx = (u % 2 ? px : T.x) + Math.cos(a) * d; cz = (u % 2 ? pz : T.z) + Math.sin(a) * d;
+          ok = this.canWalk(cx, cz) && hypot(cx - px, cz - pz) > 60 && this.units.every((v) => hypot(v.x - cx, v.z - cz) > 45);
+        }
+        if (!ok) continue;
+      }
+      let gcap = cap;
+      if (u > 0) { const cands = pool.filter((p) => !used.has(p.ja)); gcap = cands[(Math.random() * cands.length) | 0] || cap; used.add(gcap.ja); }
+      const group = 'u' + u;
+      const info = u === 0 ? boss : { name: L(`${gcap.ja}の軍勢`, `${gcap.en}'s band`), short: L(gcap.ja, gcap.en), hp: boss.hp * 0.7, pow: boss.pow * 0.85, brave: Math.random() < 0.5, west: gcap.style === 'west' };
+      if (u === 0) info.west = cap.style === 'west';
+      if (u === 0 && T.taken) continue;
+      const g = place(cx, cz, 8);
+      if (g) this.addEnemy('gen', g[0], g[1], color, group, info);
+      const n = Math.round(10 + prog * 8 + rand(0, 4));
+      for (let i = 0; i < n; i++) { const p = place(cx, cz, 18 + n * 0.6); if (p) this.addEnemy(i < n * (0.2 + prog * 0.15) ? 'gun' : 'ashi', p[0], p[1], color, group); }
+      this.units.push({ group, x: cx, z: cz, info, active: false });
     }
     // 浜の見張り
     const m = Math.round(2 + prog * 4);
     const [hx, hz] = [px + (T.x - px) * 0.35, pz + (T.z - pz) * 0.35];
     for (let i = 0; i < m; i++) { const p = place(hx, hz, 30); if (p) this.addEnemy(i === 0 && prog > 0.3 ? 'gun' : 'ashi', p[0], p[1], color, 'beach'); }
+    this.nextAct = 6; // 最初の軍勢が攻めてくるまで（秒）
     this.totalEnemies = this.enemies.length;
   }
-  addEnemy(type, x, z, color, group) {
-    const kind = type === 'gen' ? (this.cap && this.cap.style === 'west' ? 'captain' : 'boss') : type === 'gun' ? 'gun' : 'ashi';
-    const m = makeWarrior(this.G.final ? 'ghost' : kind, type === 'gen' ? '#2a2a40' : color);
+  addEnemy(type, x, z, color, group, info) {
+    let m;
+    if (type === 'gen') m = makeWarrior(this.G.final ? 'ghost' : info && info.west ? 'captain' : 'boss', '#2a2a40');
+    else m = makeCrewman(type === 'gun' ? 'gun' : 'spear', this.G.final ? 'heike' : 'jp', color); // 足軽は軽いモデルで大勢出す
     this.scene.add(m);
     const prog = this.G.progress || 0;
     const e = { type, x, z, hx: x, hz: z, alive: true, state: 'hold', group, face: rand(0, TAU), m, atkT: 0, cd: rand(0.5, 1.5), aimT: 0, aimA: 0, flash: 0, kvx: 0, kvz: 0, gait: rand(0, 6), trampleCd: 0, routT: 0, charge: 0, chargeT: 0, chargeCd: rand(2, 4), chargeA: 0, wobble: rand(0, TAU) };
-    if (type === 'gen') { e.r = 0.55; e.hp = e.maxHp = this.boss.hp * K.genHp; e.speed = this.boss.brave ? 7.6 : 6.6; e.dmg = this.boss.pow * K.dmg; e.reach = K.genReach; e.windup = 0.45; e.name = this.boss.name; e.short = this.boss.short; }
+    if (type === 'gen') { const b = info || this.boss; e.info = b; e.r = 0.55; e.hp = e.maxHp = b.hp * K.genHp; e.speed = b.brave ? 7.6 : 6.6; e.dmg = b.pow * K.dmg; e.reach = K.genReach; e.windup = 0.45; e.name = b.name; e.short = b.short; }
     else if (type === 'gun') { e.r = K.er; e.hp = e.maxHp = 24; e.speed = 4.4; e.dmg = (15 + prog * 4) * K.dmg; e.reach = 0; e.windup = 0.75; }
     else { e.r = K.er; e.hp = e.maxHp = 32 + prog * 10; e.speed = rand(4.6, 5.4); e.dmg = (8 + prog * 3) * K.dmg; e.reach = K.reach; e.windup = 0.42; }
     this.enemies.push(e);
@@ -622,6 +648,13 @@ export class Island {
 
   activate(group) {
     for (const e of this.enemies) if (e.alive && e.state === 'hold' && (!group || e.group === group)) e.state = 'chase';
+    for (const u of this.units || []) if (!u.active && (!group || u.group === group)) {
+      u.active = true;
+      msg(L(`${u.info.short}の軍勢が攻めてきた！`, `${u.info.short}'s band is attacking!`), 'warn', 4);
+      const P = this.P, d = hypot(u.x - P.x, u.z - P.z);
+      Sfx.horn(clamp(0.4 - d / 900, 0.08, 0.4), clamp((u.x - P.x) / 300, -1, 1), 0.9 + Math.random() * 0.2);
+      Sfx.swell(0.6);
+    }
   }
 
   // ---------------- 毎フレーム ----------------
@@ -630,6 +663,13 @@ export class Island {
     if (this.hitstop > 0) { this.hitstop -= dt; dt *= 0.08; }
     this.t += dt;
     this.updatePlayer(dt, I);
+    // 軍勢が一隊ずつ攻めてくる（近い隊から）
+    if (this.t > this.nextAct && this.units) {
+      const P = this.P;
+      const idle = this.units.filter((u) => !u.active && this.enemies.some((e) => e.alive && e.group === u.group));
+      if (idle.length) { idle.sort((a, b) => hypot(a.x - P.x, a.z - P.z) - hypot(b.x - P.x, b.z - P.z)); this.activate(idle[0].group); }
+      this.nextAct = this.t + Math.max(7, 14 - (this.G.progress || 0) * 6);
+    }
     for (const e of this.enemies) if (e.alive) this.updateEnemy(e, dt);
     this.enemies = this.enemies.filter((e) => { if (!e.alive && !e.dying) { this.scene.remove(e.m); return false; } return true; });
     this.separate();
@@ -920,9 +960,16 @@ export class Island {
     const m = e.m, y = this.hAt(e.x, e.z);
     m.position.set(e.x, Math.max(y, -0.5), e.z);
     m.rotation.y = Math.PI / 2 - e.face;
-    poseWarrior(m, e.gait, moving, atkPose, dt);
-    const am = m.userData.armorMat;
-    if (e.flash > 0) am.color.set('#ffffff'); else am.color.copy(m.userData.baseColor);
+    if (m.userData.legs) {
+      poseWarrior(m, e.gait, moving, atkPose, dt);
+      const am = m.userData.armorMat;
+      if (e.flash > 0) am.color.set('#ffffff'); else am.color.copy(m.userData.baseColor);
+    } else {
+      m.position.y += moving ? Math.abs(Math.sin(e.gait)) * 0.12 : 0;
+      m.rotation.z = moving ? Math.sin(e.gait) * 0.08 : 0;
+      m.rotation.x = atkPose ? -0.25 : 0;
+      m.scale.setScalar(e.flash > 0 ? 1.12 : 1);
+    }
   }
   updateGeneral(e, dt, d, ux, uz, sm, move) {
     const P = this.P;
@@ -942,7 +989,7 @@ export class Island {
       if (e.atkT <= 0) { e.cd = rand(1.1, 1.6); e.swing = 0.22; if (d < e.r + P.r + e.reach + 0.5) this.hurtPlayer(e.dmg, e.x, e.z); }
       return;
     }
-    const brave = this.boss.brave;
+    const brave = (e.info || this.boss).brave;
     const desired = brave ? 0 : 5;
     if (brave && d > 5 && d < 15 && e.chargeCd <= 0) { e.charge = 0.55; e.chargeT = 0.7; e.chargeA = Math.atan2(uz, ux); this.floats.add(e.x, this.hAt(e.x, e.z) + 3, e.z, L('突撃！', 'Charge!'), '#ff7b5a'); return; }
     if (d < e.r + P.r + e.reach && e.cd <= 0) { e.atkT = e.windup; return; }

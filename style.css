@@ -285,3 +285,6 @@ body.touch #minimap { width: min(44vw, 300px); height: min(31.4vw, 214px); left:
 #target { position: absolute; left: 50%; top: 40%; transform: translateX(-50%); background: rgba(40,6,6,.78); border: 1px solid #ff6a4a; border-radius: 4px; padding: 4px 12px; font-size: 14px; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 2px #000; }
 #target b.ph { color: #7dff8a; } #target b.pm { color: #ffe070; } #target b.pl { color: #ff8a6a; }
 @media (max-width: 600px) { #target { font-size: 11px; top: 40%; padding: 3px 8px; } }
+#harborNav { margin-top: 4px; font-size: 14px; color: #ffe9a0; font-weight: 700; }
+#harborNav i { display: inline-block; font-style: normal; color: #ffd24a; margin-right: 6px; transition: transform .2s; }
+#harborNav b { color: #fff; }

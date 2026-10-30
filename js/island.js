@@ -277,27 +277,32 @@ export class Island {
     // 岸から少し沖へ
     const [cx0, cz0] = start >= 0 ? this.cellPos(start % N, (start / N) | 0) : [lx, lz];
     let dx = sx - cx0, dz = sz - cz0, dl = hypot(dx, dz) || 1; dx /= dl; dz /= dl;
-    shx = cx0 + dx * 16; shz = cz0 + dz * 16;
+    shx = cx0 + dx * 24; shz = cz0 + dz * 24;
     for (let k = 0; k < 5 && this.hAt(shx, shz) > -0.5; k++) { shx += dx * 4; shz += dz * 4; }
     ship.position.set(shx, 0.3, shz);
     ship.rotation.y = Math.atan2(dz, -dx) + Math.PI / 2 * 0; // 舳先を沖へ
     ship.rotation.y = Math.atan2(-dx, -dz);
     S.add(ship);
+    // カメラの近くでは船も透かす
+    ship.traverse((o) => { if (o.isMesh) { o.material = cutaway(o.material.clone()); } });
     this.ship = { m: ship, x: shx, z: shz };
     // 桟橋
     const plank = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.25, hypot(shx - cx0, shz - cz0) + 2), mat('#7a5a3a'));
     plank.position.set((shx + cx0) / 2, 1.2, (shz + cz0) / 2); plank.rotation.y = Math.atan2(shx - cx0, shz - cz0);
     S.add(plank);
-    // 主人公
+    // 主人公：岸から少し内陸に立つ（背中のカメラが船に埋まらないように）
+    let px0 = cx0, pz0 = cz0;
+    for (let k = 1; k <= 12; k++) { const x = cx0 - dx * k, z = cz0 - dz * k; if (this.canWalk(x, z)) { px0 = x; pz0 = z; } else break; }
     this.P = {
-      x: cx0, z: cz0, y: this.hAt(cx0, cz0), r: K.pr, face: Math.atan2(-dz, -dx), vx: 0, vz: 0, dashing: false, inv: 1.5, atk: null,
+      x: px0, z: pz0, y: this.hAt(px0, pz0), r: K.pr, face: Math.atan2(-dz, -dx), vx: 0, vz: 0, dashing: false, inv: 1.5, atk: null,
       cdSword: 0, cdSpear: 0, combo: 0, comboT: 0, gait: 0, stDelay: 0, stepT: 0, dead: false,
     };
     this.P.m = makeWarrior('hero');
     S.add(this.P.m);
     this.camYaw = this.P.face + Math.PI; // 背中側から
-    this.camYaw = Math.atan2(dz, dx) + Math.PI;
-    this.camDist = 14;
+    this.camYaw = Math.atan2(dz, dx); // 船の方（背中側）にカメラ
+    this.P.heading = this.P.face;
+    this.camDist = 9;
     // 敵と財宝
     this.enemies = []; this.bullets = []; this.parts = []; this.pickups = []; this.critters = [];
     this.placeTreasure(cx0, cz0);
@@ -665,21 +670,21 @@ export class Island {
   updatePlayer(dt, I) {
     const P = this.P, G = this.G;
     if (P.dead) return;
-    let mx = 0, mz = 0;
-    if (I.down('KeyW') || I.down('ArrowUp')) mz -= 1;
-    if (I.down('KeyS') || I.down('ArrowDown')) mz += 1;
-    if (I.down('KeyA') || I.down('ArrowLeft')) mx -= 1;
-    if (I.down('KeyD') || I.down('ArrowRight')) mx += 1;
-    if (I.joy) { mx += I.joy.x; mz += I.joy.y; }
-    let ml = hypot(mx, mz);
-    if (ml > 1) { mx /= ml; mz /= ml; ml = 1; }
-    if (ml < 0.15) { mx = mz = 0; ml = 0; }
-    // カメラの向きに合わせる
-    const cy = this.camYaw; // カメラはプレイヤーから見て cy の方向にいる
-    const fx = -Math.cos(cy), fz = -Math.sin(cy); // 画面の奥
-    const rx = -fz, rz = fx; // 画面の右
-    const wx = rx * mx + fx * -mz, wz = rz * mx + fz * -mz;
-    mx = wx; mz = wz;
+    // 常に前を見る：前後で進み、左右で向きを変える（カメラは背中の後ろ）
+    let fwd = 0, turn = 0;
+    if (I.down('KeyW') || I.down('ArrowUp')) fwd += 1;
+    if (I.down('KeyS') || I.down('ArrowDown')) fwd -= 0.6;
+    if (I.down('KeyA') || I.down('ArrowLeft') || I.down('KeyQ')) turn -= 1;
+    if (I.down('KeyD') || I.down('ArrowRight') || (I.down('KeyE') && hypot(this.ship.x - P.x, this.ship.z - P.z) > 20)) turn += 1;
+    if (I.joy) {
+      const jx = Math.abs(I.joy.x) > 0.15 ? I.joy.x : 0, jy = Math.abs(I.joy.y) > 0.15 ? -I.joy.y : 0;
+      fwd += jy > 0 ? jy : jy * 0.6; turn += jx;
+    }
+    fwd = clamp(fwd, -0.6, 1); turn = clamp(turn, -1, 1);
+    P.heading = (P.heading ?? P.face) + turn * dt * (fwd ? 2.2 : 2.8);
+    if (!P.atk) P.face = P.heading;
+    let mx = Math.cos(P.heading) * fwd, mz = Math.sin(P.heading) * fwd;
+    const ml = Math.abs(fwd);
 
     const wantDash = I.down('Space') || I.down('ShiftLeft') || I.down('ShiftRight') || I.down('KeyL') || I.tDash;
     if (wantDash && ml > 0 && (P.dashing ? G.st > 0 : G.st > 15)) {
@@ -694,7 +699,6 @@ export class Island {
       const tf = this.slopeFactor(P.x, P.z, mx / ml, mz / ml);
       const k = 1 - Math.exp(-dt * (P.dashing ? 9 : 12));
       P.vx += (mx * base * tf - P.vx) * k; P.vz += (mz * base * tf - P.vz) * k;
-      P.face = Math.atan2(mz, mx);
     } else { const k = 1 - Math.exp(-dt * 8); P.vx -= P.vx * k; P.vz -= P.vz * k; }
     // 歩けるところだけ（壁に沿って滑る）
     const nx = P.x + P.vx * dt, nz = P.z + P.vz * dt;
@@ -1053,17 +1057,18 @@ export class Island {
 
   updateCamera(dt, I) {
     const P = this.P;
-    if (I.down('KeyQ')) this.camYaw -= dt * 1.8;
-    if (I.down('KeyE') && hypot(this.ship.x - P.x, this.ship.z - P.z) > 20) this.camYaw += dt * 1.8;
-    if (I.wheel) { this.camDist = clamp(this.camDist * (1 + I.wheel * 0.001), 7, 45); I.wheel = 0; }
+    if (I.wheel) { this.camDist = clamp(this.camDist * (1 + I.wheel * 0.001), 6, 30); I.wheel = 0; }
+    const want = (P.heading ?? P.face) + Math.PI;
+    this.camYaw += angDiff(want, this.camYaw) * (1 - Math.exp(-dt * 5));
     const cx = P.x + Math.cos(this.camYaw) * this.camDist, cz = P.z + Math.sin(this.camYaw) * this.camDist;
-    let cy = P.y + this.camDist * 1.05;
+    let cy = P.y + this.camDist * 0.5;
     cy = Math.max(cy, this.hAt(cx, cz) + 2, (this.hAt((cx + P.x) / 2, (cz + P.z) / 2) + 1.5));
     const cam = this.camera, k = 1 - Math.exp(-dt * 6);
     if (!this.camInit) { cam.position.set(cx, cy, cz); this.camInit = true; }
     cam.position.x += (cx - cam.position.x) * k; cam.position.y += (cy - cam.position.y) * k; cam.position.z += (cz - cam.position.z) * k;
     if (this.shake > 0) { this.shake -= dt; cam.position.x += rand(-0.15, 0.15); cam.position.y += rand(-0.1, 0.1); }
-    cam.lookAt(P.x, P.y + 1.2, P.z);
+    const hd = P.heading ?? P.face;
+    cam.lookAt(P.x + Math.cos(hd) * 6, P.y + 1.6, P.z + Math.sin(hd) * 6);
     CUT.value = hypot(cam.position.x - P.x, cam.position.y - P.y - 1, cam.position.z - P.z) * 0.8;
   }
 

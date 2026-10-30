@@ -244,8 +244,8 @@ function board() {
   island.dispose(); island = null;
   mode = 'sea';
   sea.resume(leftId);
-  G.hp = Math.min(G.maxHp, G.hp + 60); // 船で一息つく
-  msg(L('船に戻った。一息ついて体力が少し戻った。', 'Back aboard. You catch your breath and recover a little.'), 'sys', 4);
+  G.hp = G.maxHp; G.st = G.maxSt; // 船に戻ったら体力を全回復
+  banner(L('船に戻った', 'Back aboard'), L('体力が全回復した', 'HP fully restored'));
   Sfx.bgm(G.final ? 'final' : 'sea');
   updateHelp();
 }

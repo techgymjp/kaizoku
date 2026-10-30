@@ -75,6 +75,12 @@ canvas.addEventListener('wheel', (e) => { I.wheel += e.deltaY; e.preventDefault(
     el.addEventListener('touchend', (e) => { el.classList.remove('press'); up && up(); e.preventDefault(); }, { passive: false });
     el.addEventListener('touchcancel', () => { el.classList.remove('press'); up && up(); });
   };
+  // 右側をなぞって見回す（ボタン以外）
+  let lookId = null, lx = 0;
+  canvas.addEventListener('touchstart', (e) => { for (const t of e.changedTouches) if (t.clientX > innerWidth * 0.45 && lookId === null) { lookId = t.identifier; lx = t.clientX; I.looking = true; } }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => { for (const t of e.changedTouches) if (t.identifier === lookId) { I.lookDX = (I.lookDX || 0) + (t.clientX - lx); lx = t.clientX; } }, { passive: true });
+  const lend = (e) => { for (const t of e.changedTouches) if (t.identifier === lookId) { lookId = null; I.looking = false; } };
+  canvas.addEventListener('touchend', lend); canvas.addEventListener('touchcancel', lend);
   bind($('btnSword'), () => { primary(); I.mouseAim = false; });
   bind($('btnSpear'), () => { secondary(); I.mouseAim = false; });
   bind($('btnDash'), () => { I.tDash = true; }, () => { I.tDash = false; });
@@ -100,12 +106,12 @@ nameInput.addEventListener('input', () => {
 $('nameReset').addEventListener('click', () => { customName = ''; try { localStorage.removeItem('kaizoku.name'); } catch (e) { /* 無視 */ } syncName(); renderStory(true); });
 
 // ---------------- 状態 ----------------
-let G = null, sea = null, island = null, mode = 'title', islands = [];
+let G = null, sea = null, island = null, mode = 'title', islands = [], islets = [], islandNames = [];
 function newGame() {
   G = {
     state: 'play', t: 0, hp: 300, maxHp: 300, hull: 300, maxHull: 300, st: 100, maxSt: 100, stDelay: 0, lastHurt: -10,
     gold: 0, taken: new Set(), sunk: 0, kills: 0, bosses: 0, progress: 0, final: false, finalCleared: false, minX: 0,
-    islands, raided: [], guards: new Map(),
+    islands, islets, islandNames, raided: [], guards: new Map(),
     land, board, die, onGoal,
   };
   return G;
@@ -116,6 +122,8 @@ async function boot() {
   setLoad(L('瀬戸内海の地形を読み込んでいます……', 'Loading the Seto Inland Sea…'));
   await loadDEM();
   islands = await (await fetch('data/islands.json')).json();
+  islandNames = await fetch('data/islandnames.json').then((r) => (r.ok ? r.json() : [])).catch(() => []);
+  islets = await fetch('data/islets.json').then((r) => (r.ok ? r.json() : [])).catch(() => []);
   setLoad(L('海と島々を描いています……', 'Drawing the sea and islands…'));
   await new Promise((r) => setTimeout(r, 30));
   startSea();
@@ -157,6 +165,7 @@ $('btnStart').addEventListener('click', () => { Sfx.init(); start(); });
 $('btnRetry').addEventListener('click', () => { Sfx.init(); restart(); });
 $('btnTitle').addEventListener('click', () => { restart(true); });
 $('btnPause').addEventListener('click', () => togglePause());
+$('btnView').addEventListener('click', () => { I.toggleView = true; });
 $('btnResume').addEventListener('click', () => togglePause());
 $('btnQuit').addEventListener('click', () => { $('pause').classList.add('hidden'); restart(true); });
 
@@ -222,7 +231,7 @@ function board() {
   if (raided && !G.raided.includes(island.isl.id)) G.raided.push(island.isl.id);
   island.dispose(); island = null;
   mode = 'sea';
-  sea.resume();
+  sea.resume(island ? island.isl.id : null);
   G.hull = Math.min(G.maxHull, G.hull + 40); // 港で少し修理
   msg(L('船に戻った。港で船体を少し直した。', 'Back aboard. The hull was patched up in port.'), 'sys', 4);
   Sfx.bgm(G.final ? 'final' : 'sea');
@@ -282,7 +291,7 @@ $('shareLine').addEventListener('click', () => open('https://social-plugins.line
 function updateHelp() {
   const sea = mode === 'sea';
   $('seaHelp').innerHTML = sea
-    ? L('<kbd>W</kbd><kbd>S</kbd>帆 <kbd>A</kbd><kbd>D</kbd>舵 <kbd>J</kbd>鉄砲 <kbd>K</kbd>焙烙玉 <kbd>Space</kbd>全速 <kbd>E</kbd>上陸', '<kbd>W</kbd><kbd>S</kbd> sail <kbd>A</kbd><kbd>D</kbd> steer <kbd>J</kbd> guns <kbd>K</kbd> bomb <kbd>Space</kbd> full sail <kbd>E</kbd> land')
+    ? L('<kbd>W</kbd><kbd>S</kbd>帆 <kbd>A</kbd><kbd>D</kbd>舵 <kbd>J</kbd>鉄砲 <kbd>K</kbd>焙烙玉 <kbd>Space</kbd>全速 <kbd>E</kbd>上陸 <kbd>V</kbd>視点', '<kbd>W</kbd><kbd>S</kbd> sail <kbd>A</kbd><kbd>D</kbd> steer <kbd>J</kbd> guns <kbd>K</kbd> bomb <kbd>Space</kbd> full sail <kbd>E</kbd> land <kbd>V</kbd> view')
     : L('<kbd>WASD</kbd>移動 <kbd>J</kbd>刀 <kbd>K</kbd>槍 <kbd>Space</kbd>駆 <kbd>Q</kbd><kbd>E</kbd>視点 <kbd>E</kbd>乗船', '<kbd>WASD</kbd> move <kbd>J</kbd> sword <kbd>K</kbd> spear <kbd>Space</kbd> dash <kbd>Q</kbd><kbd>E</kbd> camera <kbd>E</kbd> board');
   const lab = sea ? [L('鉄砲', 'Guns'), L('焙烙', 'Bomb'), L('全速', 'Full'), L('上陸', 'Land')] : [L('刀', 'Sword'), L('槍', 'Spear'), L('駆', 'Dash'), L('乗船', 'Board')];
   ['btnSword', 'btnSpear', 'btnDash', 'btnLand'].forEach((id, i) => { $(id).textContent = lab[i]; delete $(id).dataset.en; });

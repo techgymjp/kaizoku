@@ -2,10 +2,10 @@
 import * as THREE from './vendor/three.module.min.js';
 import { DEM, SEA_K, VEX, hPx, hSea, ll2sea, sea2ll, ll2px, isLandPx, compAt, nearestLandPx } from './geo.js';
 import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, FINAL_LON, DANNOURA, shipName } from './data.js';
-import { makeShip, animateShip, makeCrewman, makeWarrior, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
+import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
-import { L, islandName, getLang } from './i18n.js';
+import { L, islandName, getLang, romaji } from './i18n.js';
 const N = (o) => L(o.name, o.en || o.name);
 
 const TAU = Math.PI * 2;
@@ -49,7 +49,8 @@ export class Sea {
   constructor(renderer, G) {
     this.r = renderer; this.G = G;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 14000);
+    this.camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.05, 14000);
+    this.view = 'bow'; // bow = 船首からの目線、chase = 後ろから
     this.floats = new Floats(); this.tags = new Tags();
     this.chunks = new Map();
     this.enemies = []; this.bullets = []; this.parts = []; this.loot = []; this.wakes = []; this.fallers = [];
@@ -82,7 +83,7 @@ export class Sea {
     {
       const ud = this.ship.userData;
       const hero = makeWarrior('hero'); hero.position.set(0, ud.deckY + 2.4, -ud.len * 0.36); hero.scale.setScalar(1.15); ud.inner.add(hero); this.hero = hero;
-      ud.spots.slice(0, 6).forEach(([x, z, y = 0], i) => { const c = makeCrewman(i < 2 ? 'gun' : 'spear', 'west', '#b0141a'); c.position.set(x, ud.deckY + y, z); ud.inner.add(c); });
+      ud.spots.slice(2, 8).forEach(([x, z, y = 0], i) => { const c = makeCrewman(i < 2 ? 'gun' : 'spear', 'west', '#b0141a'); c.position.set(x, ud.deckY + y, z); ud.inner.add(c); });
     }
     const [sx, sz] = ll2sea(START.lon, START.lat);
     this.P = { x: sx, z: sz, h: START.heading, v: 0, sail: 2, roll: 0, pitch: 0, cd: 0, cdBomb: 0, inv: 0 };
@@ -101,6 +102,12 @@ export class Sea {
     this.goal = { x: gx, z: gz };
     const gm = new THREE.Mesh(new THREE.CylinderGeometry(6, 6, 300, 16, 1, true), new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
     gm.position.set(gx, 150, gz); S.add(gm); this.goalBeam = gm; gm.visible = false;
+    // 船首で構える火縄銃（カメラに付ける）
+    S.add(this.camera);
+    this.gun = makeMusket();
+    this.camera.add(this.gun);
+    this.buildIslets();
+    this.buildNames();
     this.bulletGeo = new THREE.SphereGeometry(0.5, 6, 4);
     this.bulletMat = new THREE.MeshBasicMaterial({ color: '#2a2a2a' });
     this.bombMat = new THREE.MeshBasicMaterial({ color: '#ff8a2a' });
@@ -165,7 +172,7 @@ export class Sea {
           float fres = pow(1.0 - max(dot(n, v), 0.0), 4.0);
           float c = texture2D(coast, p / mapSize).r;
           vec3 col = mix(deep, shallow, smoothstep(0.35, 1.0, c));
-          col = mix(col, skyC, fres * 0.6);
+          col = mix(col, skyC, fres * 0.38);
           vec3 h = normalize(sunDir + v);
           col += vec3(1.0, 0.95, 0.8) * pow(max(dot(n, h), 0.0), 220.0) * 1.6 * (0.3 + 0.7 * fade) * clamp(sunDir.y * 2.0, 0.15, 1.0);
           float foam = smoothstep(0.9, 0.99, c) * (0.6 + 0.4 * sin(time * 1.2 + (p.x + p.y) * 0.08)) * (0.4 + 0.6 * fade);
@@ -304,6 +311,63 @@ export class Sea {
       this.marks.push({ l, x, z, o, seen: false });
     }
   }
+  // 地図に載っている島の名前（無人島を含む）
+  buildNames() {
+    const inh = this.G.islands.map((i) => ({ n: i.name, x: (i.merged ? i.px : i.cx) * SEA_K, z: (i.merged ? i.py : i.cy) * SEA_K }));
+    this.uninhabited = [];
+    const add = (name, kana, lon, lat, h) => {
+      const [x, z] = ll2sea(lon, lat);
+      if (inh.some((o) => o.n === name && Math.hypot(o.x - x, o.z - z) < 400)) return; // 有人島
+      this.uninhabited.push({ name, kana, x, z, h });
+    };
+    for (const [name, kana, lon, lat] of this.G.islandNames || []) add(name, kana, lon, lat, Math.max(10, hSea(...ll2sea(lon, lat))));
+    for (const o of this.G.islets || []) if (o[6]) add(o[6], o[7] || '', o[0], o[1], o[5]);
+  }
+  uninhabitedName(x, z, r = 150) {
+    let best = null, bd = r;
+    for (const u of this.uninhabited || []) { const d = Math.hypot(u.x - x, u.z - z); if (d < bd) { bd = d; best = u; } }
+    return best;
+  }
+  buildIslets() {
+    const list = this.G.islets || [];
+    this.isletGrid = new Map();
+    if (!list.length) return;
+    const geo = new THREE.IcosahedronGeometry(1, 1);
+    const p = geo.attributes.position, col = [];
+    for (let i = 0; i < p.count; i++) {
+      let y = p.getY(i);
+      if (y < 0) y *= 0.15; // 水の中は平たく
+      p.setY(i, y);
+      const c = new THREE.Color(y > 0.45 ? '#4a6a3a' : y > 0.1 ? '#7a7466' : '#9a9080');
+      col.push(c.r, c.g, c.b);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geo.computeVertexNormals();
+    const mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }), list.length);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    list.forEach(([lon, lat, a, b, ang, h], i) => {
+      const [x, z] = ll2sea(lon, lat);
+      const ra = Math.max(0.8, a / 20), rb = Math.max(0.8, b / 20);
+      q.setFromAxisAngle(up, -ang); sc.set(ra, Math.max(0.8, h * VEX), rb); ps.set(x, -0.2, z);
+      m4.compose(ps, q, sc); mesh.setMatrixAt(i, m4);
+      const k = ((x / 60) | 0) + ',' + ((z / 60) | 0);
+      if (!this.isletGrid.has(k)) this.isletGrid.set(k, []);
+      this.isletGrid.get(k).push({ x, z, ra, rb, c: Math.cos(ang), s: Math.sin(ang) });
+    });
+    this.scene.add(mesh);
+  }
+  isletAt(x, z, pad = 1) {
+    if (!this.isletGrid || !this.isletGrid.size) return false;
+    const gx = (x / 60) | 0, gz = (z / 60) | 0;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const arr = this.isletGrid.get((gx + i) + ',' + (gz + j)); if (!arr) continue;
+      for (const o of arr) {
+        const dx = x - o.x, dz = z - o.z, u = dx * o.c + dz * o.s, v = -dx * o.s + dz * o.c;
+        if ((u / (o.ra + pad)) ** 2 + (v / (o.rb + pad)) ** 2 < 1) return true;
+      }
+    }
+    return false;
+  }
   buildWhirlpools() {
     this.pools = [];
     const tex = (() => {
@@ -342,6 +406,8 @@ export class Sea {
       im.data[o + 3] = 255;
     }
     g.putImageData(im, 0, 0);
+    g.fillStyle = 'rgb(120,130,80)';
+    for (const o of this.G.islets || []) { const [x, z] = ll2sea(o[0], o[1]); g.fillRect(x / SEA_K / s - 0.5, z / SEA_K / s - 0.5, 1.2, 1.2); }
     this.miniBg = c;
   }
   drawMinimap() {
@@ -554,7 +620,7 @@ export class Sea {
     // 移動と座礁
     const nx = P.x + Math.cos(P.h) * P.v * dt, nz = P.z + Math.sin(P.h) * P.v * dt;
     const bowX = nx + Math.cos(P.h) * PR * Math.sign(P.v || 1), bowZ = nz + Math.sin(P.h) * PR * Math.sign(P.v || 1);
-    if (hSea(bowX, bowZ) > -1.2 || hSea(nx, nz) > -1.2) {
+    if (hSea(bowX, bowZ) > -1.2 || hSea(nx, nz) > -1.2 || this.isletAt(bowX, bowZ, 1) || this.isletAt(nx, nz, 3)) {
       if (Math.abs(P.v) > 14 && P.inv <= 0) { this.hurtHull(Math.abs(P.v) * 0.25, P.x, P.z, true); msg(L('座礁した！', 'Ran aground!'), 'warn', 2); P.inv = 1; Sfx.crack(0.3); }
       P.v *= -0.25;
     } else { P.x = nx; P.z = nz; }
@@ -586,6 +652,13 @@ export class Sea {
     // 鉄砲
     const aim = this.aimPoint(I);
     this.aimMark.position.set(aim.x, 0.3, aim.z);
+    if (this.view === 'bow') {
+      const gu = this.gun.userData;
+      gu.kick = Math.max(0, (gu.kick || 0) - dt * 6);
+      this.gun.position.set(0.26, -0.3 + gu.kick * 0.03, -0.6 + gu.kick * 0.1);
+      this.gun.lookAt(aim.x, 1.5, aim.z);
+      gu.match.material.color.setHSL(0.07, 1, 0.5 + Math.sin(this.t * 20) * 0.15);
+    }
     this.aimMark.visible = !!aim.lock || I.mouseAim;
     P.cd -= dt; P.cdBomb -= dt;
     if ((I.fire || I.down('KeyJ')) && P.cd <= 0) { I.fire = false; this.fireVolley(aim); }
@@ -642,7 +715,13 @@ export class Sea {
     // 上陸できる島
     this.landCheckT = (this.landCheckT || 0) - dt;
     if (this.landCheckT <= 0) { this.landCheckT = 0.25; this.canLand = this.findLanding(); this.updateLandPrompt(); }
-    if (this.canLand && this.canLand.isl && (I.pressed('KeyE') || I.land)) { I.land = false; G.land(this.canLand); }
+    const cl = this.canLand;
+    if (cl && cl.isl && (I.pressed('KeyE') || I.land)) { I.land = false; G.land(cl); }
+    else if (cl && cl.isl && cl.d <= 3.2 && !G.taken.has(cl.isl.id) && G.state === 'play' && (this.noAuto !== cl.isl.id || Math.hypot(P.x - this.noAutoX, P.z - this.noAutoZ) > 180)) {
+      // 港（岸）に入ったら、自動で上陸する
+      msg(L(`${cl.isl.name}の港に入った——上陸！`, `Entering port at ${islandName(cl.isl)} — landing!`), 'sys', 3);
+      G.land(cl);
+    }
     I.land = false;
     // 音
     const near = this.enemies.some((e) => !e.sink && Math.hypot(e.x - P.x, e.z - P.z) < 450);
@@ -659,14 +738,31 @@ export class Sea {
   camHeading() { return this.P.h + this.camYaw; }
   updateCamera(dt, I) {
     const P = this.P;
+    if (I.pressed('KeyV') || I.toggleView) { I.toggleView = false; this.view = this.view === 'bow' ? 'chase' : 'bow'; this.camInit = false; }
     if (I.down('KeyQ')) this.camYaw -= dt * 1.5;
     if (I.down('KeyE') && !this.canLand) this.camYaw += dt * 1.5;
+    if (I.lookDX) { this.camYaw += I.lookDX * 0.006; I.lookDX = 0; }
+    const cam = this.camera;
+    this.gun.visible = this.view === 'bow';
+    if (this.view === 'bow') {
+      this.camYaw = clamp(this.camYaw, -2.4, 2.4);
+      if (!I.down('KeyQ') && !I.down('KeyE') && !I.looking) this.camYaw *= Math.exp(-dt * 0.15);
+      // 船首の甲板、目の高さ
+      const ud = this.ship.userData;
+      const eye = ud.inner.localToWorld(new THREE.Vector3(0, ud.deckY + 3.2, ud.len * 0.4)); // 船首楼の上
+      cam.position.copy(eye);
+      const ch = this.camHeading();
+      cam.up.set(Math.sin(P.roll) * 0.3 * Math.cos(ch), 1, Math.sin(P.roll) * 0.3 * Math.sin(ch));
+      cam.lookAt(eye.x + Math.cos(ch) * 100, eye.y - 4, eye.z + Math.sin(ch) * 100);
+      cam.up.set(0, 1, 0);
+      I.wheel = 0;
+      return;
+    }
     if (I.wheel) { this.camDist = clamp(this.camDist * (1 + I.wheel * 0.001), 30, 220); I.wheel = 0; }
     this.camYaw *= Math.exp(-dt * 0.4);
     const ch = this.camHeading();
     const tx = P.x - Math.cos(ch) * this.camDist, tz = P.z - Math.sin(ch) * this.camDist;
     const k = 1 - Math.exp(-dt * 3);
-    const cam = this.camera;
     if (!this.camInit) { cam.position.set(tx, this.camH, tz); this.camInit = true; }
     cam.position.x += (tx - cam.position.x) * k; cam.position.z += (tz - cam.position.z) * k;
     const gh = Math.max(0, hSea(cam.position.x, cam.position.z) * VEX);
@@ -703,25 +799,43 @@ export class Sea {
         if (dd > 300) { x = P.x + (x - P.x) / dd * 300; z = P.z + (z - P.z) / dd * 300; }
         return { x, z };
       }
+      // 水平線より上を指したときは、その向きの 300 先
+      const l = Math.hypot(d.x, d.z) || 1;
+      return { x: P.x + d.x / l * 300, z: P.z + d.z / l * 300 };
     }
+    const view = this.camHeading();
     // 自動照準：前方の近い敵
     let best = null, bs = 1e9;
     for (const e of this.enemies) {
       if (e.sink) continue;
       const dx = e.x - P.x, dz = e.z - P.z, d = Math.hypot(dx, dz);
       if (d > 280) continue;
-      const ad = Math.abs(angDiff(Math.atan2(dz, dx), P.h));
+      const ad = Math.abs(angDiff(Math.atan2(dz, dx), view));
+      if (this.view === 'bow' && ad > 0.5) continue;
       const s = d + ad * 60;
       if (s < bs) { bs = s; best = e; }
     }
     if (best) return { x: best.x + Math.cos(best.h) * best.v * 0.8, z: best.z + Math.sin(best.h) * best.v * 0.8, lock: best };
-    return { x: P.x + Math.cos(P.h) * 120, z: P.z + Math.sin(P.h) * 120 };
+    return { x: P.x + Math.cos(view) * 160, z: P.z + Math.sin(view) * 160 };
   }
   fireVolley(aim) {
     const P = this.P;
     P.cd = 0.55;
     const a = Math.atan2(aim.z - P.z, aim.x - P.x);
     const dist = clamp(Math.hypot(aim.x - P.x, aim.z - P.z), 40, 300);
+    this.gun.userData.kick = 1;
+    if (this.view === 'bow') {
+      const mz = this.gun.userData.muzzle.getWorldPosition(new THREE.Vector3());
+      const aa = Math.atan2(aim.z - mz.z, aim.x - mz.x);
+      for (let i = 0; i < 4; i++) {
+        const sa = aa + rand(-0.035, 0.035);
+        this.addBullet(mz.x + rand(-1, 1), mz.y - 0.3, mz.z + rand(-1, 1), Math.cos(sa) * 170, 0, Math.sin(sa) * 170, 'p', 14, 2.1);
+      }
+      this.sprite('#ffd070', mz.x, mz.y, mz.z, 1.2, 0.12, 0, 0, 0, 0);
+      this.smoke(mz.x, mz.y, mz.z, 3);
+      Sfx.gun(0.6); setTimeout(() => Sfx.gun(0.35), 70);
+      return;
+    }
     for (let i = 0; i < 4; i++) {
       const side = angDiff(a, P.h) > 0 ? 1 : -1;
       const ox = P.x + Math.cos(P.h) * (i - 1.5) * 2.6 + Math.cos(P.h + side * Math.PI / 2) * 2.4;
@@ -895,7 +1009,7 @@ export class Sea {
     const tv = e.speed * (d < 100 ? 0.65 : 1) * (gd && !e.pursue ? 0.5 : 1);
     e.v += (tv - e.v) * (1 - Math.exp(-dt * 0.8));
     const nx = e.x + Math.cos(e.h) * e.v * dt, nz = e.z + Math.sin(e.h) * e.v * dt;
-    if (hSea(nx, nz) < -1.2) { e.x = nx; e.z = nz; } else { e.v *= 0.3; e.h += 1.5 * dt; }
+    if (hSea(nx, nz) < -1.2 && !this.isletAt(nx, nz, 2)) { e.x = nx; e.z = nz; } else { e.v *= 0.3; e.h += 1.5 * dt; }
     // 船どうしの押し合い
     for (const f of this.enemies) {
       if (f === e || f.sink) continue;
@@ -1001,10 +1115,12 @@ export class Sea {
     if (!cands.length) cands = G.islands.filter((i) => i.merged && Math.hypot(i.px - near.x, i.py - near.y) < 22);
     if (!cands.length) {
       const big = DEM.comps[comp] && DEM.comps[comp].area > 60000;
-      return { isl: null, why: big ? L('本州・四国・九州には上陸できぬ', 'You cannot land on Honshu, Shikoku or Kyushu') : L('無人島。財宝はなさそうだ', 'Uninhabited — no treasure here') };
+      const un = this.uninhabitedName(near.x * SEA_K, near.y * SEA_K, 250);
+      const nm = un ? L(un.name, romaji(un.kana || un.name)) + ' ' : '';
+      return { isl: null, why: big && !un ? L('本州・四国・九州には上陸できぬ', 'You cannot land on Honshu, Shikoku or Kyushu') : nm + L('（無人島）財宝はなさそうだ', '(uninhabited) — no treasure here') };
     }
     cands.sort((a, b) => Math.hypot(a.px - near.x, a.py - near.y) - Math.hypot(b.px - near.x, b.py - near.y));
-    return { isl: cands[0], px: near.x, py: near.y, shipPx: px, shipPy: py, heading: P.h };
+    return { isl: cands[0], px: near.x, py: near.y, shipPx: px, shipPy: py, heading: P.h, d: near.d };
   }
   updateLandPrompt() {
     const el = $('landPrompt');
@@ -1030,13 +1146,31 @@ export class Sea {
       if (d > 700 || (e.guard && !e.pursue && d > 350)) continue;
       this.tags.put(cam, e.x, 9 + e.r, e.z, e.name, e.hp / e.maxHp, e.boss ? 'boss' : e.ghost ? 'ghost' : '');
     }
+    // 島の名前（上陸できる島がわかるように）
+    const near = [];
+    for (const isl of this.G.islands) {
+      const cx = (isl.merged ? isl.px : isl.cx) * SEA_K, cz = (isl.merged ? isl.py : isl.cy) * SEA_K;
+      const d = Math.hypot(cx - P.x, cz - P.z);
+      if (d < 2400) near.push([d, isl, cx, cz]);
+    }
+    near.sort((p, q) => p[0] - q[0]);
+    for (const [d, isl, cx, cz] of near.slice(0, 10)) {
+      const taken = this.G.taken.has(isl.id);
+      const label = islandName(isl) + (taken ? L('　財宝は奪った', ' · raided') : L('　⚓上陸できる・財宝あり', ' · ⚓ land here · treasure'));
+      this.tags.put(cam, cx, (isl.maxH || 30) * VEX + 6, cz, label, null, taken ? 'isl done' : 'isl');
+    }
+    const un = [];
+    for (const u of this.uninhabited || []) { const d = Math.hypot(u.x - P.x, u.z - P.z); if (d < 1100) un.push([d, u]); }
+    un.sort((p, q) => p[0] - q[0]);
+    for (const [, u] of un.slice(0, 8)) this.tags.put(cam, u.x, u.h * VEX + 4, u.z, L(u.name + '（無人島）', romaji(u.kana || u.name) + ' (uninhabited)'), null, 'isl none');
     this.tags.end();
     this.miniT = (this.miniT || 0) - dt;
     if (this.miniT <= 0) { this.miniT = 0.2; this.drawMinimap(); }
   }
   resize() { this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix(); }
   // 島から戻ったとき
-  resume() {
+  resume(islId) {
+    this.noAuto = islId; this.noAutoX = this.P.x; this.noAutoZ = this.P.z;
     this.updateChunks(true);
     this.floats.clear();
     this.P.v = 0; this.P.sail = 1;

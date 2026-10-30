@@ -245,7 +245,7 @@ function makeGalleon(type, opt) {
   });
   // 三角帆（船首）
   const jib = new THREE.Mesh(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, deckY + 2, L * 0.62), new THREE.Vector3(0, deckY + tallest * 0.8, mastZ[0]), new THREE.Vector3(0, deckY + 1.5, mastZ[0] + 1)]), plainM);
-  jib.geometry.computeVertexNormals(); g.add(jib);
+  jib.geometry.computeVertexNormals(); if (!player) g.add(jib); // 自船は船首から前が見えるように付けない
   // 索具
   const rig = [];
   mastZ.forEach((z) => { const top = [0, deckY + tallest * 0.9, z]; for (const s of [-1, 1]) for (const dz of [-2, 0, 2]) rig.push(...top, s * W * 0.5, deckY + 0.6, z + dz); });
@@ -663,4 +663,25 @@ export function makeCrewman(role, style, color = '#3a4a6a') {
   }
   const m = new THREE.Mesh(crewGeoCache.get(key), crewMat);
   return m;
+}
+
+// ---- 船首で構える火縄銃（一人称で見える。+z が銃口） ----
+export function makeMusket() {
+  const g = new THREE.Group();
+  g.scale.setScalar(0.75);
+  const wood = new THREE.MeshLambertMaterial({ color: '#5a3418' }), iron = new THREE.MeshLambertMaterial({ color: '#2a2a2e' }), brass = new THREE.MeshLambertMaterial({ color: '#c8a040' });
+  const add = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+  add(new THREE.BoxGeometry(0.07, 0.09, 0.55), wood, 0, -0.03, -0.05); // 台木
+  add(new THREE.BoxGeometry(0.06, 0.13, 0.16), wood, 0, -0.06, -0.33); // 床尾
+  const barrel = add(new THREE.CylinderGeometry(0.018, 0.024, 1.0, 8), iron, 0, 0.03, 0.45); barrel.rotation.x = Math.PI / 2;
+  for (const z of [0.05, 0.4, 0.8]) { const r = add(new THREE.CylinderGeometry(0.03, 0.03, 0.025, 8), brass, 0, 0.02, z); r.rotation.x = Math.PI / 2; }
+  add(new THREE.BoxGeometry(0.02, 0.05, 0.08), brass, 0.035, 0.02, 0.02); // 火挟み
+  const match = add(new THREE.SphereGeometry(0.012, 6, 4), new THREE.MeshBasicMaterial({ color: '#ff7a20' }), 0.035, 0.06, 0.02); // 火縄の火
+  add(new THREE.BoxGeometry(0.012, 0.03, 0.012), brass, 0, 0.06, 0.92); // 先目当て
+  // 手
+  add(new THREE.BoxGeometry(0.09, 0.07, 0.12), new THREE.MeshLambertMaterial({ color: '#d8a880' }), 0, -0.06, 0.2);
+  add(new THREE.BoxGeometry(0.1, 0.08, 0.14), new THREE.MeshLambertMaterial({ color: '#8a1014' }), 0.02, -0.1, -0.2);
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0.03, 0.98); g.add(muzzle);
+  g.userData = { muzzle, match, kick: 0 };
+  return g;
 }

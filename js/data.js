@@ -78,33 +78,31 @@ export const WHIRLPOOLS = [
 const P = (ja, en, style) => ({ ja, en, style });
 export const ZONES = [
   { lon: 135.6, name: '大阪湾', en: 'Osaka Bay', rate: 0.6, max: 2,
-    faction: { name: '九鬼水軍とキッド一味', en: 'the Kuki Navy & Kidd’s crew', crest: '九', color: '#5a3a1a' },
-    captains: [P('九鬼嘉隆', 'Kuki Yoshitaka', 'jp'), P('キャプテン・キッド', 'Captain Kidd', 'west'), P('ヘンリー・エヴリー', 'Henry Every', 'west')] },
+    faction: { name: '平安の武士', en: 'Heian warriors', crest: '平', color: '#4a3a1a' },
+    captains: [P('平将門', 'Taira no Masakado', 'jp'), P('坂上田村麻呂', 'Sakanoue no Tamuramaro', 'jp'), P('源頼光', 'Minamoto no Yorimitsu', 'jp')] },
   { lon: 134.97, name: '播磨灘', en: 'Harima Sea', rate: 0.8, max: 3,
-    faction: { name: '黒ひげ海賊団', en: 'Blackbeard’s crew', crest: 'skull', color: '#222222' },
-    captains: [P('黒ひげ', 'Blackbeard', 'west'), P('九鬼嘉隆', 'Kuki Yoshitaka', 'jp'), P('キャプテン・キッド', 'Captain Kidd', 'west'), P('スティード・ボネット', 'Stede Bonnet', 'west'), P('チャールズ・ヴェイン', 'Charles Vane', 'west'), P('サミュエル・ベラミー', 'Samuel Bellamy', 'west')] },
+    faction: { name: '平安の武士', en: 'Heian warriors', crest: '平', color: '#4a3a1a' },
+    captains: [P('平将門', 'Taira no Masakado', 'jp'), P('藤原純友', 'Fujiwara no Sumitomo', 'jp'), P('源頼光', 'Minamoto no Yorimitsu', 'jp'), P('源為朝', 'Minamoto no Tametomo', 'jp'), P('藤原秀郷', 'Fujiwara no Hidesato', 'jp')] },
   { lon: 134.30, name: '備讃瀬戸', en: 'Bisan Strait', rate: 1.0, max: 3,
-    faction: { name: 'バルバロッサ艦隊', en: 'Barbarossa’s fleet', crest: '☾', color: '#5a1a1a' },
-    captains: [P('ハイレッディン・バルバロッサ', 'Hayreddin Barbarossa', 'west'), P('ウルージ・レイス', 'Oruç Reis', 'west'), P('ドラグート', 'Dragut', 'west')] },
+    faction: { name: '鎌倉の武者', en: 'Kamakura warriors', crest: '鎌', color: '#2a3a5a' },
+    captains: [P('熊谷直実', 'Kumagai Naozane', 'jp'), P('那須与一', 'Nasu no Yoichi', 'jp'), P('畠山重忠', 'Hatakeyama Shigetada', 'jp'), P('梶原景時', 'Kajiwara Kagetoki', 'jp'), P('北条時宗', 'Hōjō Tokimune', 'jp'), P('竹崎季長', 'Takezaki Suenaga', 'jp')] },
   { lon: 133.55, name: '備後灘', en: 'Bingo Sea', rate: 1.0, max: 4,
-    faction: { name: '女海賊連合', en: 'the pirate queens', crest: 'skull', color: '#4a2a5a' },
-    captains: [P('鄭一嫂', 'Ching Shih', 'cn'), P('グレイス・オマリー', 'Grace O’Malley', 'west'), P('アン・ボニー', 'Anne Bonny', 'west'), P('メアリー・リード', 'Mary Read', 'west'), P('キャラコ・ジャック', 'Calico Jack', 'west')] },
+    faction: { name: '南北朝の武将', en: 'Nanboku-chō warlords', crest: '菊', color: '#4a2a4a' },
+    captains: [P('楠木正成', 'Kusunoki Masashige', 'jp'), P('新田義貞', 'Nitta Yoshisada', 'jp'), P('足利尊氏', 'Ashikaga Takauji', 'jp'), P('佐々木道誉', 'Sasaki Dōyo', 'jp'), P('北畠顕家', 'Kitabatake Akiie', 'jp')] },
   { lon: 133.22, name: '芸予諸島', en: 'Geiyo Islands', rate: 1.3, max: 5,
-    faction: { name: '村上水軍', en: 'the Murakami Navy', crest: 'maru', color: '#1a2a4a' },
-    captains: [P('村上武吉', 'Murakami Takeyoshi', 'jp'), P('村上通康', 'Murakami Michiyasu', 'jp'), P('村上吉充', 'Murakami Yoshimitsu', 'jp'), P('村上元吉', 'Murakami Motoyoshi', 'jp')] },
+    faction: { name: '戦国の水軍', en: 'Sengoku navies', crest: 'maru', color: '#1a2a4a' },
+    captains: [P('村上武吉', 'Murakami Takeyoshi', 'jp'), P('毛利元就', 'Mōri Motonari', 'jp'), P('武田信玄', 'Takeda Shingen', 'jp'), P('上杉謙信', 'Uesugi Kenshin', 'jp'), P('北条早雲', 'Hōjō Sōun', 'jp')] },
   { lon: 132.78, name: '安芸灘・広島湾', en: 'Aki Sea & Hiroshima Bay', rate: 1.2, max: 4,
-    faction: { name: 'バッカニア', en: 'the Buccaneers', crest: 'skull', color: '#3a1a1a' },
-    captains: [P('ヘンリー・モーガン', 'Henry Morgan', 'west'), P('フランソワ・ロロネー', 'François l’Olonnais', 'west'), P('バーソロミュー・ロバーツ', 'Bartholomew Roberts', 'west'), P('エドワード・ロー', 'Edward Low', 'west')] },
+    faction: { name: '天下人の軍勢', en: 'the unifiers’ armies', crest: '天', color: '#3a1a1a' },
+    captains: [P('織田信長', 'Oda Nobunaga', 'jp'), P('豊臣秀吉', 'Toyotomi Hideyoshi', 'jp'), P('徳川家康', 'Tokugawa Ieyasu', 'jp'), P('真田幸村', 'Sanada Yukimura', 'jp'), P('伊達政宗', 'Date Masamune', 'jp'), P('本多忠勝', 'Honda Tadakatsu', 'jp')] },
   { lon: 132.15, name: '伊予灘・周防灘', en: 'Iyo & Suō Seas', rate: 1.1, max: 4,
-    faction: { name: '倭寇と南海の海賊', en: 'the Wakō & South Sea pirates', crest: '倭', color: '#2a3a2a' },
-    captains: [P('藤原純友', 'Fujiwara no Sumitomo', 'jp'), P('王直', 'Wang Zhi', 'cn'), P('鄭芝龍', 'Zheng Zhilong', 'cn'), P('張保仔', 'Cheung Po Tsai', 'cn'), P('林鳳', 'Limahong', 'cn')] },
+    faction: { name: '幕末の志士', en: 'Bakumatsu shishi', crest: '志', color: '#2a3a2a' },
+    captains: [P('坂本龍馬', 'Sakamoto Ryōma', 'jp'), P('高杉晋作', 'Takasugi Shinsaku', 'jp'), P('西郷隆盛', 'Saigō Takamori', 'jp'), P('桂小五郎', 'Katsura Kogorō', 'jp'), P('土方歳三', 'Hijikata Toshizō', 'jp'), P('近藤勇', 'Kondō Isami', 'jp')] },
   { lon: 131.10, name: '関門海峡', en: 'Kanmon Strait', rate: 0, max: 0,
     faction: { name: '平家の怨霊', en: 'the Heike Ghosts', crest: 'heike', color: '#8a1010' }, captains: [] },
 ];
 // 島の頭目（上陸先の海域の海賊に、ここから足す）
-export const ISLAND_BOSSES = [P('ウィリアム・ダンピア', 'William Dampier', 'west'), P('ジャン・ラフィット', 'Jean Lafitte', 'west'), P('トマス・テュー', 'Thomas Tew', 'west'),
-  P('クラウス・シュテルテベーカー', 'Klaus Störtebeker', 'west'), P('エドワード・イングランド', 'Edward England', 'west'), P('フランシス・ドレーク', 'Francis Drake', 'west'),
-  P('鄭一', 'Zheng Yi', 'cn'), P('来島通総', 'Kurushima Michifusa', 'jp'), P('真鍋貞友', 'Manabe Sadatomo', 'jp'), P('忽那重清', 'Kutsuna Shigekiyo', 'jp')];
+export const ISLAND_BOSSES = []; // 島の頭目も、その海域の時代の武士
 const SHIP_NAMES = { jp: { kobaya: ['小早', 'kobaya'], seki: ['関船', 'sekibune'], ataka: ['安宅船', 'atakebune'] }, west: { kobaya: ['スループ', 'sloop'], seki: ['ブリガンティン', 'brigantine'], ataka: ['ガレオン', 'galleon'] }, cn: { kobaya: ['小ジャンク', 'junk'], seki: ['ジャンク', 'war junk'], ataka: ['大ジャンク', 'great junk'] } };
 export function shipName(cap, type, lang) {
   const n = SHIP_NAMES[cap.style][type];
@@ -158,7 +156,7 @@ export const ISLAND_NOTES = {
 export const STORY = [
   '慶長七年。関ヶ原で東西両軍を斬り抜けた{name}は、死んだことにして姫路の港へ落ちのびた。',
   '手に入れたのは一艘の海賊船。黒い帆には髑髏と違い鎌。',
-  '追い風を受けて目指すは西の果て、巌流島。瀬戸内の島々に眠る財宝を奪い、黒ひげ・バルバロッサ・村上武吉・鄭一嫂——古今東西の海賊どもを沈め、',
+  '追い風を受けて目指すは西の果て、巌流島。瀬戸内の島々に眠る財宝を奪い、平将門から坂本龍馬まで——時代を下りながら名だたる武士たちを討ち、',
   '壇ノ浦に巣くう平家の怨霊を討ち果たせば——その名は「瀬戸内の海賊王」。',
 ];
 export const STORY_EN = [

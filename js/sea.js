@@ -1437,13 +1437,12 @@ export class Sea {
     for (const e of this.enemies) {
       if (e.sink || e.far) continue;
       const d = Math.hypot(e.x - P.x, e.z - P.z);
-      if (d > 700 || (e.guard && !e.pursue && d > 350)) continue;
+      if (d > 1500) continue;
       tagged.push([e.boss ? -1 : d, e]);
     }
     tagged.sort((p, q) => p[0] - q[0]);
-    for (const [, e] of tagged.slice(0, 8)) {
-      this.tags.put(cam, e.x, 9 + e.r, e.z, e.name, e.hp / e.maxHp, e.boss ? 'boss' : e.ghost ? 'ghost' : '');
-    }
+    // 船の名前の札は出さず、敵船の上に赤い印だけ（近い 12 隻。大将は大きく）
+    for (const [, e] of tagged.slice(0, 12)) this.tags.put(cam, e.x, 7 + e.r, e.z, '▼', null, e.boss ? 'mk boss' : 'mk ship-e');
     // 島の名前（上陸できる島がわかるように）
     const near = [];
     for (const isl of this.G.islands) {
@@ -1457,12 +1456,12 @@ export class Sea {
       const taken = this.G.taken.has(isl.id);
       const cx = !taken && isl.harbor ? isl.harbor.x : cx0, cz = !taken && isl.harbor ? isl.harbor.z : cz0;
       const label = islandName(isl) + (taken ? L('　財宝は奪った', ' · raided') : narrow ? ' ⚓' : L(' ⚓港', ' ⚓ port'));
-      this.tags.put(cam, cx, taken ? (isl.maxH || 30) * VEX + 6 : 40, cz, label, null, taken ? 'isl done' : 'isl');
+
     }
     const un = [];
     for (const u of this.uninhabited || []) { const d = Math.hypot(u.x - P.x, u.z - P.z); if (d < 1100) un.push([d, u]); }
     un.sort((p, q) => p[0] - q[0]);
-    for (const [, u] of un.slice(0, narrow ? 2 : 6)) this.tags.put(cam, u.x, u.h * VEX + 4, u.z, L(u.name + '（無人島）', romaji(u.kana || u.name) + ' (uninhabited)'), null, 'isl none');
+    if (false) for (const [, u] of un.slice(0, narrow ? 2 : 6)) this.tags.put(cam, u.x, u.h * VEX + 4, u.z, L(u.name + '（無人島）', romaji(u.kana || u.name) + ' (uninhabited)'), null, 'isl none');
     this.tags.end();
     this.miniT = (this.miniT || 0) - dt;
     if (this.miniT <= 0) { this.miniT = 0.2; this.drawMinimap(); }

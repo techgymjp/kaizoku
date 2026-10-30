@@ -320,3 +320,9 @@ body.touch #minimap { width: min(44vw, 300px); height: min(31.4vw, 214px); left:
   #harborNav #navArrow { width: 46px; height: 46px; font-size: 26px; }
   #harborNav #navName { font-size: 24px; } #harborNav #navInfo { font-size: 22px; }
 }
+/* 小さな文字の札は出さない */
+#msgs, #target, #landPrompt, .help { display: none !important; }
+.tag.mk.boss span { color: #ff2a1a; font-size: 22px; }
+.tag.mk.gold span { color: #ffd24a; font-size: 30px; }
+.tag.mk.ship span { color: #fff; font-size: 26px; }
+.tag.mk.ship-e span { color: #ff3a2a; font-size: 24px; }

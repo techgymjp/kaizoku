@@ -2,7 +2,7 @@
 // 戦い方は「孤軍奮闘小早川」と同じ（駆＝ダッシュ、刀＝3 連目で回転斬り・弾を弾く、槍＝駆を使い 2 人まで貫く、おむすびで回復）
 import * as THREE from './vendor/three.module.min.js';
 import { DEM, hPx, px2ll, lon2gx, lat2gy, gx2lon, gy2lat, loadImage, fetchWithTimeout, SEA_FLOOR } from './geo.js';
-import { LANDMARKS, ISLAND_NOTES, ISLAND_NOTES_EN, ISLAND_BOSSES, zoneAt } from './data.js';
+import { LANDMARKS, ISLAND_NOTES, ISLAND_NOTES_EN, ISLAND_BOSSES, ZONES, zoneAt } from './data.js';
 import { decodeMVT } from './mvt.js';
 import { makeCrewman, makeWarrior, poseWarrior, makeTorii, makeHall, makePagoda, makeJoyato, makeChest, makeOnigiri, makeShip, makeDeer, makeRabbit, makeGangi, makePumpkin, mat } from './models.js';
 import { Sfx } from './audio.js';
@@ -585,7 +585,8 @@ export class Island {
     const G = this.G, T = this.treasure;
     const prog = G.progress || 0;
     const color = this.G.zoneColor || '#3a4a6a';
-    const pool = [...zoneAt(this.isl.lon).captains, ...ISLAND_BOSSES];
+    let pool = [...zoneAt(this.isl.lon).captains, ...ISLAND_BOSSES];
+    if (!pool.length) pool = [...ZONES[ZONES.length - 2].captains]; // 関門の島は幕末の志士
     const cap = pool[(Math.random() * pool.length) | 0];
     this.cap = cap;
     const boss = { name: L(`${cap.ja}（${this.isl.name}の頭目）`, `${cap.en} (boss of ${islandName(this.isl)})`), short: L(cap.ja, cap.en), hp: 230 + prog * 260, pow: 18 + prog * 10, brave: Math.random() < 0.5 + prog * 0.3 };
@@ -611,8 +612,8 @@ export class Island {
       let gcap = cap;
       if (u > 0) { const cands = pool.filter((p) => !used.has(p.ja)); gcap = cands[(Math.random() * cands.length) | 0] || cap; used.add(gcap.ja); }
       const group = 'u' + u;
-      const info = u === 0 ? boss : { name: L(`${gcap.ja}の軍勢`, `${gcap.en}'s band`), short: L(gcap.ja, gcap.en), hp: boss.hp * 0.7, pow: boss.pow * 0.85, brave: Math.random() < 0.5, west: gcap.style === 'west' };
-      if (u === 0) info.west = cap.style === 'west';
+      const info = u === 0 ? boss : { name: L(`${gcap.ja}の軍勢`, `${gcap.en}'s band`), short: L(gcap.ja, gcap.en), hp: boss.hp * 0.7, pow: boss.pow * 0.85, brave: Math.random() < 0.5, west: false };
+      if (u === 0) info.west = false;
       if (u === 0 && T.taken) continue;
       const g = place(cx, cz, 8);
       if (g) this.addEnemy('gen', g[0], g[1], color, group, info);
@@ -1135,15 +1136,15 @@ export class Island {
     this.r.render(this.scene, this.camera);
     this.floats.update(dt, this.camera);
     this.tags.begin();
-    for (const e of this.enemies) if (e.alive && e.type === 'gen') this.tags.put(this.camera, e.x, this.hAt(e.x, e.z) + 3.4, e.z, e.name, e.hp / e.maxHp, 'boss');
+    for (const e of this.enemies) if (e.alive && e.type === 'gen') this.tags.put(this.camera, e.x, this.hAt(e.x, e.z) + 3.4, e.z, '▼', null, 'mk boss');
     // 攻めてくる足軽の頭上に小さな印（近い 14 人）
     const P = this.P, near = [];
     for (const e of this.enemies) if (e.alive && e.type !== 'gen' && e.state === 'chase') { const d = hypot(e.x - P.x, e.z - P.z); if (d < 60) near.push([d, e]); }
     near.sort((p, q) => p[0] - q[0]);
     for (const [, e] of near.slice(0, 14)) this.tags.put(this.camera, e.x, this.hAt(e.x, e.z) + 2.4, e.z, e.type === 'gun' ? '▼鉄砲' : '▼', null, 'mk' + (e.type === 'gun' ? ' gun' : ''));
     const T = this.treasure;
-    if (!T.taken) this.tags.put(this.camera, T.x, this.hAt(T.x, T.z) + 3, T.z, L(`財宝（${T.place}）`, `Treasure (${T.place}) `) + `${Math.round(hypot(T.x - this.P.x, T.z - this.P.z))}m`, null, 'gold');
-    else this.tags.put(this.camera, this.ship.x, 9, this.ship.z, L('船 ', 'Ship ') + `${Math.round(hypot(this.ship.x - this.P.x, this.ship.z - this.P.z))}m`, null, 'ship');
+    if (!T.taken) this.tags.put(this.camera, T.x, this.hAt(T.x, T.z) + 3, T.z, '★', null, 'mk gold');
+    else this.tags.put(this.camera, this.ship.x, 9, this.ship.z, '⚓', null, 'mk ship');
     this.tags.end();
     this.drawMini();
   }

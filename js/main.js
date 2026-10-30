@@ -29,6 +29,7 @@ const I = {
 function primary() { if (mode === 'sea') I.fire = true; else I.sword = true; }
 function secondary() { if (mode === 'sea') I.bomb = true; else I.spear = true; }
 addEventListener('keydown', (e) => {
+  if (e.target && e.target.tagName === 'INPUT') { if (e.code === 'Enter') { e.target.blur(); } return; }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   Sfx.init();
   if (!e.repeat) hits.add(e.code);
@@ -80,13 +81,31 @@ canvas.addEventListener('wheel', (e) => { I.wheel += e.deltaY; e.preventDefault(
   bind($('btnLand'), () => { I.land = true; });
 })();
 
+// ---------------- 船長の名前 ----------------
+const nameInput = $('nameInput');
+const defaultName = () => L('小早川秀秋', 'Kobayakawa Hideaki');
+let customName = '';
+try { customName = localStorage.getItem('kaizoku.name') || ''; } catch (e) { /* 保存できなくても遊べる */ }
+export function playerName() { return customName.trim() || defaultName(); }
+function syncName() {
+  nameInput.value = customName; nameInput.placeholder = defaultName();
+  $('hudName').textContent = playerName();
+}
+nameInput.addEventListener('input', () => {
+  customName = nameInput.value.replace(/[<>&"]/g, '').slice(0, 14);
+  try { localStorage.setItem('kaizoku.name', customName); } catch (e) { /* 無視 */ }
+  $('hudName').textContent = playerName();
+  renderStory(true);
+});
+$('nameReset').addEventListener('click', () => { customName = ''; try { localStorage.removeItem('kaizoku.name'); } catch (e) { /* 無視 */ } syncName(); renderStory(true); });
+
 // ---------------- 状態 ----------------
 let G = null, sea = null, island = null, mode = 'title', islands = [];
 function newGame() {
   G = {
     state: 'play', t: 0, hp: 300, maxHp: 300, hull: 300, maxHull: 300, st: 100, maxSt: 100, stDelay: 0, lastHurt: -10,
     gold: 0, taken: new Set(), sunk: 0, kills: 0, bosses: 0, progress: 0, final: false, finalCleared: false, minX: 0,
-    islands, raided: [],
+    islands, raided: [], guards: new Map(),
     land, board, die, onGoal,
   };
   return G;
@@ -125,9 +144,11 @@ function showTitle() {
   renderStory();
   Sfx.bgm('title');
 }
-function renderStory() {
+function renderStory(keepName) {
+  if (!keepName) syncName();
   const lines = getLang() === 'en' ? STORY_EN : STORY;
-  $('story').innerHTML = lines.map((l) => `<p>${l}</p>`).join('');
+  const nm = playerName().replace(/[<>&]/g, '');
+  $('story').innerHTML = lines.map((l) => `<p>${l.replace('{name}', `<b>${nm}</b>`)}</p>`).join('');
   $('btnMute').textContent = Sfx.muted ? L('音：切', 'Sound: off') : L('音：入', 'Sound: on');
 }
 for (const b of document.querySelectorAll('.lang-btn')) b.addEventListener('click', () => { setLang(b.dataset.lang); renderStory(); updateHelp(); });
@@ -217,7 +238,7 @@ function onGoal() {
   if (G.state !== 'play') return;
   G.state = 'clearing'; G.endT = 0;
   Sfx.bgm('clear'); Sfx.fanfare(); Sfx.bell();
-  banner(L('下関に着いた！', 'You reached Shimonoseki!'), L('瀬戸内の海賊王、ここに誕生', 'The Pirate King of the Seto Inland Sea is born'));
+  banner(L('下関に着いた！', 'You reached Shimonoseki!'), L(`瀬戸内の海賊王・${playerName()}、ここに誕生`, `${playerName()}, Pirate King of the Seto Inland Sea, is born`));
 }
 
 // ---------------- 結果 ----------------
@@ -238,7 +259,7 @@ function showResult(clear) {
   h.textContent = clear ? L('海賊王', 'PIRATE KING') : L('無　念', 'DEFEATED');
   h.classList.toggle('clear', clear);
   $('rPlace').textContent = clear ? L('壇ノ浦の怨霊を鎮め、下関に至る', 'Laid the Heike ghosts of Dan-no-ura to rest and reached Shimonoseki') : G.deathPlace || '';
-  $('rTitle').textContent = L('称号：', 'Title: ') + rank(clear);
+  $('rTitle').textContent = L(`船長 ${playerName()}　称号：`, `Captain ${playerName()} — `) + rank(clear);
   $('rGold').textContent = G.gold.toLocaleString() + L(' 両', ' ryō');
   $('rIsl').textContent = `${G.taken.size} / ${islands.length}`;
   $('rSunk').textContent = G.sunk;
@@ -252,7 +273,7 @@ function showResult(clear) {
 }
 function shareText() {
   const clear = $('rHead').classList.contains('clear');
-  return L(`【瀬戸内の海賊王】${rank(clear)}——財宝 ${G.gold.toLocaleString()} 両、${G.taken.size} 島を荒らし、${G.sunk} 艘を沈めた。`, `[Pirate King of the Seto Inland Sea] ${rank(clear)} — ${G.gold.toLocaleString()} ryō of treasure, ${G.taken.size} islands raided, ${G.sunk} ships sunk.`);
+  return L(`【瀬戸内の海賊王】船長${playerName()}は「${rank(clear)}」——財宝 ${G.gold.toLocaleString()} 両、${G.taken.size} 島を荒らし、${G.sunk} 艘を沈めた。`, `[Pirate King of the Seto Inland Sea] Captain ${playerName()}: ${rank(clear)} — ${G.gold.toLocaleString()} ryō of treasure, ${G.taken.size} islands raided, ${G.sunk} ships sunk.`);
 }
 $('shareX').addEventListener('click', () => open('https://x.com/intent/post?text=' + encodeURIComponent(shareText()) + '&url=' + encodeURIComponent(location.href.split('#')[0]), '_blank', 'noopener'));
 $('shareLine').addEventListener('click', () => open('https://social-plugins.line.me/lineit/share?url=' + encodeURIComponent(location.href.split('#')[0]) + '&text=' + encodeURIComponent(shareText()), '_blank', 'noopener'));
@@ -261,9 +282,9 @@ $('shareLine').addEventListener('click', () => open('https://social-plugins.line
 function updateHelp() {
   const sea = mode === 'sea';
   $('seaHelp').innerHTML = sea
-    ? L('<kbd>W</kbd><kbd>S</kbd>帆 <kbd>A</kbd><kbd>D</kbd>舵 <kbd>J</kbd>鉄砲 <kbd>K</kbd>焙烙玉 <kbd>Space</kbd>漕ぐ <kbd>E</kbd>上陸', '<kbd>W</kbd><kbd>S</kbd> sail <kbd>A</kbd><kbd>D</kbd> steer <kbd>J</kbd> guns <kbd>K</kbd> bomb <kbd>Space</kbd> row <kbd>E</kbd> land')
+    ? L('<kbd>W</kbd><kbd>S</kbd>帆 <kbd>A</kbd><kbd>D</kbd>舵 <kbd>J</kbd>鉄砲 <kbd>K</kbd>焙烙玉 <kbd>Space</kbd>全速 <kbd>E</kbd>上陸', '<kbd>W</kbd><kbd>S</kbd> sail <kbd>A</kbd><kbd>D</kbd> steer <kbd>J</kbd> guns <kbd>K</kbd> bomb <kbd>Space</kbd> full sail <kbd>E</kbd> land')
     : L('<kbd>WASD</kbd>移動 <kbd>J</kbd>刀 <kbd>K</kbd>槍 <kbd>Space</kbd>駆 <kbd>Q</kbd><kbd>E</kbd>視点 <kbd>E</kbd>乗船', '<kbd>WASD</kbd> move <kbd>J</kbd> sword <kbd>K</kbd> spear <kbd>Space</kbd> dash <kbd>Q</kbd><kbd>E</kbd> camera <kbd>E</kbd> board');
-  const lab = sea ? [L('鉄砲', 'Guns'), L('焙烙', 'Bomb'), L('漕', 'Row'), L('上陸', 'Land')] : [L('刀', 'Sword'), L('槍', 'Spear'), L('駆', 'Dash'), L('乗船', 'Board')];
+  const lab = sea ? [L('鉄砲', 'Guns'), L('焙烙', 'Bomb'), L('全速', 'Full'), L('上陸', 'Land')] : [L('刀', 'Sword'), L('槍', 'Spear'), L('駆', 'Dash'), L('乗船', 'Board')];
   ['btnSword', 'btnSpear', 'btnDash', 'btnLand'].forEach((id, i) => { $(id).textContent = lab[i]; delete $(id).dataset.en; });
 }
 let hudT = 0;
@@ -274,7 +295,7 @@ function updateHUD(dt) {
   $('stbar').style.width = (G.st / G.maxSt) * 100 + '%'; $('stbar').classList.toggle('low', G.st < 15);
   $('hGold').textContent = G.gold.toLocaleString();
   $('hIsl').textContent = `${G.taken.size}/${islands.length}`;
-  $('hSunk').textContent = G.sunk; $('hKill').textContent = G.kills + G.bosses;
+  $('hSunk').textContent = G.sunk; $('hKill').textContent = G.kills + G.bosses; $('hEsc').textContent = sea ? sea.enemies.filter((e) => e.pursue && !e.sink && !e.final).length : 0;
   let place = '';
   if (mode === 'island' && island) place = islandName(island.isl);
   else if (sea && sea.zone) place = zoneName(sea.zone);

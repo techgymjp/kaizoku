@@ -1,4 +1,4 @@
-// 効果音と BGM（WebAudio で手続き生成）
+// 効果音と BGM（WebAudio で手続き生成。BGM は海賊映画のような管弦楽を新しく作曲したもの）
 // 効果音の多くは「孤軍奮闘小早川」（techgymjp/kobayakawa）の js/audio.js をそのまま使っている
 export const Sfx = (() => {
   let ac = null, master = null, muted = false, noiseBuf = null;
@@ -15,7 +15,8 @@ export const Sfx = (() => {
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     startCrowd();
     startWaves();
-    bgmBus = ac.createGain(); bgmBus.gain.value = 0.8; bgmBus.connect(master);
+    bgmBus = ac.createGain(); bgmBus.gain.value = 0.75; bgmBus.connect(master);
+    makeReverb();
     if (bgm.mode) { const m = bgm.mode; bgm.mode = null; setBgm(m); }
   }
 
@@ -113,138 +114,156 @@ export const Sfx = (() => {
     w.connect(wf); wf.connect(wg); wg.connect(out); w.start(); wl.start();
     waves = out;
   }
-  // 琴（カープラス・ストロング風に短いノイズを櫛形フィルタで鳴らす代わりに、減衰の速い倍音で近似）
-  function koto(freq, when, vol = 0.12, dur = 1.6, dest) {
-    const t = ac.currentTime + when;
-    const out = ac.createGain(); out.connect(dest || bgmBus);
-    for (const [m, v, d] of [[1, 1, 1], [2, 0.45, 0.6], [3, 0.22, 0.35], [4.02, 0.12, 0.2]]) {
-      const o = ac.createOscillator(); o.type = m === 1 ? 'triangle' : 'sine';
-      o.frequency.setValueAtTime(freq * m * 1.006, t);
-      o.frequency.exponentialRampToValueAtTime(freq * m, t + 0.04); // 爪の当たり
-      const g = ac.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(vol * v, t + 0.006);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + dur * d);
-      o.connect(g); g.connect(out); o.start(t); o.stop(t + dur * d + 0.05);
+  // ---- BGM（海賊映画のような管弦楽。ニ短調・6/8 拍子の疾走感。曲はすべて新しく作ったもの） ----
+  const mtof = (m) => 440 * 2 ** ((m - 69) / 12);
+  function env(g, t, a, peak, d, sus, end) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * sus), t + a + d);
+    g.gain.setValueAtTime(Math.max(0.0001, peak * sus), end);
+    g.gain.exponentialRampToValueAtTime(0.0001, end + 0.08);
+  }
+  // 弦の刻み（チェロ・コントラバス）：短く、強く
+  function strings(m, when, dur, vol = 0.09) {
+    const t = ac.currentTime + when, f = mtof(m);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 1.2;
+    lp.frequency.setValueAtTime(f * 8, t); lp.frequency.exponentialRampToValueAtTime(f * 3, t + dur);
+    const g = ac.createGain(); env(g, t, 0.008, vol, dur * 0.6, 0.35, t + dur * 0.85);
+    for (const d of [-8, 7]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = d; o.connect(lp); o.start(t); o.stop(t + dur + 0.1); }
+    lp.connect(g); g.connect(bgmBus);
+  }
+  // 金管（ホルン・トランペット）：吹き始めに音が開く
+  function brass(m, when, dur, vol = 0.07, bright = 1) {
+    const t = ac.currentTime + when, f = mtof(m);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 2;
+    lp.frequency.setValueAtTime(f * 1.2, t); lp.frequency.exponentialRampToValueAtTime(f * 5 * bright, t + 0.07); lp.frequency.exponentialRampToValueAtTime(f * 3.2 * bright, t + 0.3);
+    const g = ac.createGain(); env(g, t, 0.04, vol, 0.2, 0.75, t + dur);
+    const vib = ac.createOscillator(); vib.frequency.value = 5.2; const vg = ac.createGain(); vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(f * 0.008, t + Math.min(0.5, dur));
+    vib.connect(vg);
+    for (const [type, mul, d] of [['sawtooth', 1, -5], ['sawtooth', 1, 6], ['square', 0.5, 0]]) {
+      const o = ac.createOscillator(); o.type = type; o.frequency.value = f * mul; o.detune.value = d; vg.connect(o.frequency);
+      const og = ac.createGain(); og.gain.value = type === 'square' ? 0.35 : 0.5; o.connect(og); og.connect(lp); o.start(t); o.stop(t + dur + 0.15);
     }
-    const n = ac.createBufferSource(); n.buffer = noiseBuf;
-    const nf = ac.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = freq * 3; nf.Q.value = 4;
-    const ng = ac.createGain(); ng.gain.setValueAtTime(vol * 0.5, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-    n.connect(nf); nf.connect(ng); ng.connect(out); n.start(t, Math.random()); n.stop(t + 0.08);
+    vib.start(t); vib.stop(t + dur + 0.15);
+    lp.connect(g); g.connect(bgmBus); g.connect(revIn);
   }
-  // 琵琶（低く、撥の当たりが強く、音が少し下がる）
-  function biwa(freq, when, vol = 0.16, dur = 1.4) {
+  // 弦の和音（ゆっくり立ち上がる）
+  function pad(ms, when, dur, vol = 0.03) {
     const t = ac.currentTime + when;
-    const o = ac.createOscillator(); o.type = 'sawtooth';
-    o.frequency.setValueAtTime(freq * 1.03, t); o.frequency.exponentialRampToValueAtTime(freq, t + 0.08);
-    o.frequency.exponentialRampToValueAtTime(freq * 0.985, t + dur);
-    const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 6;
-    f.frequency.setValueAtTime(freq * 12, t); f.frequency.exponentialRampToValueAtTime(freq * 2, t + dur * 0.6);
-    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(f); f.connect(g); g.connect(bgmBus); o.start(t); o.stop(t + dur + 0.05);
-    const n = ac.createBufferSource(); n.buffer = noiseBuf;
-    const ng = ac.createGain(); ng.gain.setValueAtTime(vol * 0.8, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
-    const nf = ac.createBiquadFilter(); nf.type = 'highpass'; nf.frequency.value = 2000;
-    n.connect(nf); nf.connect(ng); ng.connect(bgmBus); n.start(t, Math.random()); n.stop(t + 0.05);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400;
+    const g = ac.createGain(); env(g, t, Math.min(0.5, dur * 0.3), vol, 0.3, 0.85, t + dur);
+    for (const m of ms) for (const d of [-10, 9]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = d; o.connect(lp); o.start(t); o.stop(t + dur + 0.2); }
+    lp.connect(g); g.connect(bgmBus); g.connect(revIn);
   }
-  // 尺八（息の音を混ぜた正弦波。ゆっくり揺れる）
-  function shaku(freq, when, dur, vol = 0.07) {
+  // 合唱（「アー」）
+  function choir(ms, when, dur, vol = 0.035) {
     const t = ac.currentTime + when;
+    const f1 = ac.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 720; f1.Q.value = 5;
+    const f2 = ac.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 1150; f2.Q.value = 6;
+    const g = ac.createGain(); env(g, t, 0.35, vol, 0.3, 0.9, t + dur);
+    for (const m of ms) for (const d of [-12, 0, 11]) { const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = mtof(m); o.detune.value = d; o.connect(f1); o.connect(f2); o.start(t); o.stop(t + dur + 0.2); }
+    f1.connect(g); f2.connect(g); g.connect(bgmBus); g.connect(revIn);
+  }
+  function timpani(m, when, vol = 0.3) {
+    const t = ac.currentTime + when, f = mtof(m);
     const o = ac.createOscillator(); o.type = 'sine';
-    o.frequency.setValueAtTime(freq * 0.97, t); o.frequency.exponentialRampToValueAtTime(freq, t + 0.15);
-    const lfo = ac.createOscillator(); lfo.frequency.value = 4.5;
-    const lg = ac.createGain(); lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(freq * 0.012, t + dur * 0.7);
-    lfo.connect(lg); lg.connect(o.frequency);
-    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.18);
-    g.gain.setValueAtTime(vol, t + dur * 0.75); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(bgmBus);
+    o.frequency.setValueAtTime(f * 1.5, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.03);
+    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    o.connect(g); g.connect(bgmBus); g.connect(revIn); o.start(t); o.stop(t + 1);
     const n = ac.createBufferSource(); n.buffer = noiseBuf;
-    const nf = ac.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = freq * 2; nf.Q.value = 3;
-    const ng = ac.createGain(); ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(vol * 0.9, t + 0.08); ng.gain.exponentialRampToValueAtTime(vol * 0.15, t + 0.4); ng.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    n.connect(nf); nf.connect(ng); ng.connect(bgmBus);
-    o.start(t); lfo.start(t); n.start(t, Math.random()); o.stop(t + dur + 0.05); lfo.stop(t + dur + 0.05); n.stop(t + dur + 0.05);
+    const nf = ac.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 600;
+    const ng = ac.createGain(); ng.gain.setValueAtTime(vol * 0.5, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    n.connect(nf); nf.connect(ng); ng.connect(bgmBus); n.start(t, Math.random()); n.stop(t + 0.15);
   }
-  function taiko(when, vol = 0.3, pitch = 70) {
+  function snare(when, vol = 0.08) {
     const t = ac.currentTime + when;
-    const o = ac.createOscillator(); o.type = 'sine';
-    o.frequency.setValueAtTime(pitch * 1.6, t); o.frequency.exponentialRampToValueAtTime(pitch, t + 0.05); o.frequency.exponentialRampToValueAtTime(pitch * 0.7, t + 0.45);
-    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
-    o.connect(g); g.connect(bgmBus); o.start(t); o.stop(t + 0.55);
     const n = ac.createBufferSource(); n.buffer = noiseBuf;
-    const nf = ac.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 400;
-    const ng = ac.createGain(); ng.gain.setValueAtTime(vol * 0.6, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
-    n.connect(nf); nf.connect(ng); ng.connect(bgmBus); n.start(t, Math.random()); n.stop(t + 0.12);
+    const nf = ac.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 2200; nf.Q.value = 0.7;
+    const ng = ac.createGain(); ng.gain.setValueAtTime(vol, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    n.connect(nf); nf.connect(ng); ng.connect(bgmBus); n.start(t, Math.random()); n.stop(t + 0.16);
   }
-  function kane(when, vol = 0.05) { // 鉦（チャンチキ）
+  function cymbal(when, vol = 0.07) {
     const t = ac.currentTime + when;
-    for (const f of [1870, 2830, 4100]) {
-      const o = ac.createOscillator(); o.type = 'square'; o.frequency.value = f;
-      const g = ac.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1500;
-      o.connect(hp); hp.connect(g); g.connect(bgmBus); o.start(t); o.stop(t + 0.15);
-    }
+    const n = ac.createBufferSource(); n.buffer = noiseBuf;
+    const nf = ac.createBiquadFilter(); nf.type = 'highpass'; nf.frequency.value = 5000;
+    const ng = ac.createGain(); ng.gain.setValueAtTime(vol, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
+    n.connect(nf); nf.connect(ng); ng.connect(bgmBus); ng.connect(revIn); n.start(t, Math.random() * 0.2); n.stop(t + 1.45);
   }
-  // ---- BGM ----
-  // 都節音階（ミ・ファ・ラ・シ・ド）を基本に、場面ごとに速さと楽器を変える
-  let bgmBus = null, bgm = { mode: null, next: 0, step: 0, timer: null };
-  const MIYAKO = [0, 1, 5, 7, 8]; // 半音
-  const RYUKYU = [0, 2, 3, 7, 9]; // 陽音階に近い（民謡・舟歌）
-  const note = (base, scale, deg) => { const o = Math.floor(deg / 5); const i = ((deg % 5) + 5) % 5; return base * 2 ** ((scale[i] + o * 12) / 12); };
-  // 旋律（音階の度数。null は休み）
+  // 残響
+  let revIn = null;
+  function makeReverb() {
+    const len = ac.sampleRate * 2.2, buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = buf.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
+    const cv = ac.createConvolver(); cv.buffer = buf;
+    revIn = ac.createGain(); revIn.gain.value = 0.35;
+    const out = ac.createGain(); out.gain.value = 0.5;
+    revIn.connect(cv); cv.connect(out); out.connect(master);
+  }
+
+  // 和音の名前 → 構成音（ニ短調の中で使うもの）
+  const CH = { Dm: [50, 53, 57], C: [48, 52, 55], Bb: [46, 50, 53], A: [45, 49, 52], Gm: [43, 46, 50], F: [41, 45, 48], Am: [45, 48, 52], E: [40, 44, 47], D: [50, 54, 57], G: [43, 47, 50], Eb: [51, 55, 58], Bbm: [46, 49, 53], Cm: [48, 51, 55] };
+  // 旋律は [8分音符での位置, MIDI 音, 長さ]。1 小節 = 8分音符 6 つ（6/8 拍子）
   const SONGS = {
-    // 舟歌：ゆったりした陽の音階。尺八と琴
-    sea: { bpm: 76, scale: RYUKYU, base: 293.7, len: 32,
-      mel: [5, null, 4, 3, 4, null, null, null, 3, 2, 3, 4, 2, null, null, null, 5, null, 6, 7, 6, 5, 4, null, 3, 4, 2, 1, 0, null, null, null],
-      bass: [0, null, null, null, -3, null, null, null, -2, null, null, null, -5, null, null, null],
-      drum: [1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0] },
-    // 海戦：速い太鼓と鉦、琴の刻み
-    battle: { bpm: 152, scale: MIYAKO, base: 329.6, len: 16,
-      mel: [5, 4, 5, 7, 6, 5, 4, 2, 3, 4, 3, 2, 1, 2, 0, null],
-      bass: [0, 0, -5, 0, -2, -2, -3, -5],
-      drum: [2, 0, 1, 1, 2, 0, 1, 0, 2, 1, 1, 0, 2, 0, 1, 1], kane: true },
-    // 島：緊張した都節の琴と、小早川らしい太鼓
-    island: { bpm: 118, scale: MIYAKO, base: 246.9, len: 16,
-      mel: [0, 2, 3, null, 2, 1, 0, null, 3, 4, 5, 4, 3, 2, 1, null],
-      bass: [0, null, -5, null, 0, null, -3, null],
-      drum: [2, 0, 0, 1, 1, 0, 1, 0, 2, 0, 0, 1, 1, 0, 1, 1] },
-    // 壇ノ浦：琵琶と低い太鼓、法螺貝。平家の怨霊
-    final: { bpm: 96, scale: MIYAKO, base: 164.8, len: 16,
-      mel: [0, null, 1, null, 0, -1, -2, null, 3, null, 2, 1, 0, null, null, null],
-      bass: [0, 0, -2, -2, -5, -5, -4, -4],
-      drum: [2, 0, 1, 0, 2, 0, 1, 1, 2, 0, 1, 0, 2, 1, 2, 1], biwa: true },
-    title: { bpm: 64, scale: MIYAKO, base: 293.7, len: 16,
-      mel: [0, null, 2, 3, 4, null, 3, 2, 1, null, 2, 0, null, null, null, null],
-      bass: [0, null, null, null, -3, null, null, null], drum: [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
-    clear: { bpm: 120, scale: RYUKYU, base: 392, len: 16,
-      mel: [0, 2, 3, 5, 4, 3, 5, 7, 6, 5, 4, 3, 5, null, null, null],
-      bass: [0, -2, -3, -5, 0, -2, 0, null], drum: [2, 0, 1, 1, 2, 0, 1, 0, 2, 1, 1, 1, 2, 2, 2, 0], kane: true },
+    // 航海：勇ましく、少し哀しい主題
+    sea: { dq: 66, bars: ['Dm', 'Dm', 'Bb', 'C', 'Dm', 'Gm', 'A', 'A', 'F', 'C', 'Bb', 'A', 'Dm', 'Gm', 'A', 'Dm'], gallop: 1, drums: 'march',
+      mel: [[0, 69, 2], [2, 74, 1], [3, 76, 2], [5, 77, 1], [6, 76, 3], [9, 74, 3], [12, 77, 2], [14, 79, 1], [15, 81, 2], [17, 82, 1], [18, 81, 3], [21, 79, 2], [23, 76, 1],
+        [24, 77, 2], [26, 76, 1], [27, 74, 2], [29, 69, 1], [30, 70, 3], [33, 74, 2], [35, 79, 1], [36, 77, 2], [38, 76, 1], [39, 73, 2], [41, 69, 1], [42, 76, 6],
+        [48, 72, 2], [50, 77, 1], [51, 81, 3], [54, 79, 2], [56, 76, 1], [57, 72, 3], [60, 74, 2], [62, 77, 1], [63, 82, 3], [66, 81, 2], [68, 79, 1], [69, 76, 3],
+        [72, 81, 2], [74, 77, 1], [75, 74, 2], [77, 77, 1], [78, 79, 2], [80, 82, 1], [81, 81, 3], [84, 76, 2], [86, 73, 1], [87, 76, 3], [90, 74, 6]] },
+    // 海戦：速く激しい。金管の連打と打楽器
+    battle: { dq: 84, bars: ['Dm', 'C', 'Bb', 'A', 'Dm', 'C', 'Bb', 'A', 'Gm', 'Dm', 'Eb', 'A'], gallop: 2, drums: 'battle',
+      mel: [[0, 74, 1], [1, 74, 1], [2, 74, 1], [3, 77, 2], [5, 76, 1], [6, 72, 1], [7, 72, 1], [8, 72, 1], [9, 76, 2], [11, 74, 1], [12, 70, 2], [14, 74, 1], [15, 77, 2], [17, 82, 1], [18, 81, 4], [22, 76, 2],
+        [24, 74, 1], [25, 74, 1], [26, 74, 1], [27, 81, 2], [29, 79, 1], [30, 76, 1], [31, 76, 1], [32, 76, 1], [33, 79, 2], [35, 77, 1], [36, 74, 2], [38, 77, 1], [39, 82, 2], [41, 81, 1], [42, 81, 6],
+        [48, 79, 2], [50, 77, 1], [51, 74, 3], [54, 74, 2], [56, 77, 1], [57, 81, 3], [60, 82, 2], [62, 79, 1], [63, 75, 3], [66, 76, 2], [68, 73, 1], [69, 69, 3]] },
+    // 島：低い弦の刻みが続く、忍び寄る緊張
+    island: { dq: 72, bars: ['Dm', 'Dm', 'Bb', 'A', 'Gm', 'Gm', 'Bb', 'A'], gallop: 1, drums: 'sneak', low: true,
+      mel: [[0, 62, 3], [3, 65, 3], [6, 64, 2], [8, 61, 1], [9, 62, 3], [12, 65, 3], [15, 69, 3], [18, 70, 2], [20, 69, 1], [21, 64, 3],
+        [24, 67, 3], [27, 70, 3], [30, 69, 2], [32, 65, 1], [33, 62, 3], [36, 70, 3], [39, 74, 3], [42, 73, 6]] },
+    // 壇ノ浦：遅く重い。合唱と金管、雷のようなティンパニ
+    final: { dq: 52, bars: ['Dm', 'Bb', 'Gm', 'A', 'Dm', 'Eb', 'Cm', 'A'], gallop: 0, drums: 'doom', choir: true,
+      mel: [[0, 62, 3], [3, 65, 2], [5, 64, 1], [6, 62, 6], [12, 67, 3], [15, 70, 2], [17, 69, 1], [18, 64, 6], [24, 69, 3], [27, 75, 3], [30, 74, 3], [33, 72, 2], [35, 70, 1], [36, 69, 6], [42, 61, 6]] },
+    title: { dq: 50, bars: ['Dm', 'Bb', 'F', 'A', 'Dm', 'Gm', 'Bb', 'A'], gallop: 0, drums: 'title',
+      mel: [[0, 69, 3], [3, 74, 3], [6, 77, 4], [10, 76, 2], [12, 74, 3], [15, 72, 3], [18, 73, 6], [24, 74, 3], [27, 77, 3], [30, 82, 4], [34, 81, 2], [36, 79, 3], [39, 77, 2], [41, 73, 1], [42, 74, 6]] },
+    clear: { dq: 76, bars: ['D', 'G', 'D', 'A', 'D', 'G', 'A', 'D'], gallop: 1, drums: 'march', major: true,
+      mel: [[0, 74, 2], [2, 78, 1], [3, 81, 3], [6, 83, 2], [8, 81, 1], [9, 78, 3], [12, 74, 2], [14, 78, 1], [15, 81, 2], [17, 86, 1], [18, 85, 6],
+        [24, 86, 2], [26, 83, 1], [27, 79, 3], [30, 81, 2], [32, 78, 1], [33, 74, 3], [36, 76, 2], [38, 78, 1], [39, 79, 2], [41, 85, 1], [42, 86, 6]] },
   };
+  let bgmBus = null, bgm = { mode: null, next: 0, step: 0, timer: null };
   function bgmTick() {
     if (!ac || !bgm.mode) return;
     const S = SONGS[bgm.mode];
-    const spb = 60 / S.bpm / 2; // 8分音符
-    while (bgm.next < ac.currentTime + 0.25) {
+    const e8 = 60 / S.dq / 3; // 8分音符の長さ
+    const total = S.bars.length * 6;
+    while (bgm.next < ac.currentTime + 0.3) {
       const w = Math.max(0, bgm.next - ac.currentTime);
-      const i = bgm.step;
-      const m = S.mel[i % S.len];
-      if (m !== null && m !== undefined) {
-        const f = note(S.base, S.scale, m);
-        if (bgm.mode === 'sea' || bgm.mode === 'title') {
-          let len = 1; while (S.mel[(i + len) % S.len] === null && len < 4) len++;
-          shaku(f, w, spb * len * 1.1, 0.06);
-          if (i % 4 === 0) koto(f / 2, w, 0.05, 2.2);
-        } else if (S.biwa) { if (i % 2 === 0) biwa(f, w, 0.13, 1.6); else koto(f * 2, w, 0.05); }
-        else koto(f, w, bgm.mode === 'battle' ? 0.07 : 0.08, 1.2);
+      const i = bgm.step % total, bar = (i / 6) | 0, pos = i % 6;
+      const chord = CH[S.bars[bar]];
+      const root = chord[0] - (chord[0] > 47 ? 12 : 0);
+      // 低音の刻み（タタタ・タタタ）
+      if (S.gallop) {
+        const acc = pos === 0 || pos === 3;
+        strings(root, w, e8 * 0.9, acc ? 0.11 : 0.07);
+        if (S.gallop > 1 || acc) strings(root + 12, w, e8 * 0.8, acc ? 0.06 : 0.04);
+        if (!S.low && pos % 3 === 1) strings(chord[1] + 12, w, e8 * 0.7, 0.035);
+      } else if (pos === 0) strings(root, w, e8 * 5, 0.06);
+      if (pos === 0) {
+        pad(chord.map((m) => m + 12), w, e8 * 6, S.low ? 0.018 : 0.026);
+        if (S.choir) choir(chord.map((m) => m + 12), w, e8 * 6, 0.04);
+        if (bar === 0 || (S.drums === 'battle' && bar % 2 === 0)) cymbal(w, S.drums === 'battle' ? 0.08 : 0.05);
       }
-      const bi = (i >> 1) % S.bass.length;
-      if (i % 2 === 0 && S.bass[bi] !== null) {
-        const f = note(S.base / 4, S.scale, S.bass[bi]);
-        if (S.biwa) biwa(f, w, 0.1, 1.8); else if (bgm.mode !== 'sea' && bgm.mode !== 'title') koto(f, w, 0.06, 0.9);
+      // 打楽器
+      const D = S.drums;
+      if (D === 'march') { if (pos === 0) timpani(38, w, 0.28); if (pos === 3) timpani(45, w, 0.18); if (pos === 5) snare(w, 0.05); }
+      else if (D === 'battle') { if (pos === 0 || pos === 3) timpani(pos ? 45 : 38, w, 0.3); snare(w, pos === 2 || pos === 5 ? 0.09 : 0.035); }
+      else if (D === 'sneak') { if (pos === 0) timpani(38, w, 0.2); if (pos === 4 && bar % 2 === 1) timpani(37, w, 0.12); }
+      else if (D === 'doom') { if (pos === 0) timpani(38, w, 0.38); if (pos === 3 && bar % 2 === 1) for (let k = 0; k < 3; k++) timpani(38, w + k * e8 / 3, 0.15); }
+      else if (D === 'title') { if (pos === 0 && bar % 2 === 0) timpani(38, w, 0.25); }
+      // 旋律（金管）
+      for (const [p, m, len] of S.mel) if (p === i) {
+        brass(m, w, e8 * len * 0.95, S.drums === 'battle' ? 0.075 : 0.065, S.drums === 'doom' ? 0.7 : 1);
+        if (S.drums === 'battle' || S.drums === 'doom') brass(m - 12, w, e8 * len * 0.95, 0.04, 0.6); // 低い金管で重ねる
       }
-      const d = S.drum[i % S.drum.length];
-      if (d) taiko(w, d === 2 ? 0.26 : 0.13, S.biwa ? 55 : 72);
-      if (S.kane && i % 2 === 1) kane(w, 0.025);
-      bgm.next += spb; bgm.step++;
+      bgm.next += e8; bgm.step++;
     }
   }
   function setBgm(mode) {

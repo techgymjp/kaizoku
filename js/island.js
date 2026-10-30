@@ -2,7 +2,7 @@
 // 戦い方は「孤軍奮闘小早川」と同じ（駆＝ダッシュ、刀＝3 連目で回転斬り・弾を弾く、槍＝駆を使い 2 人まで貫く、おむすびで回復）
 import * as THREE from './vendor/three.module.min.js';
 import { DEM, hPx, px2ll, lon2gx, lat2gy, gx2lon, gy2lat, loadImage, fetchWithTimeout, SEA_FLOOR } from './geo.js';
-import { LANDMARKS, ISLAND_NOTES, ISLAND_NOTES_EN } from './data.js';
+import { LANDMARKS, ISLAND_NOTES, ISLAND_NOTES_EN, ISLAND_BOSSES, zoneAt } from './data.js';
 import { decodeMVT } from './mvt.js';
 import { makeWarrior, poseWarrior, makeTorii, makeHall, makePagoda, makeJoyato, makeChest, makeOnigiri, makeShip, makeDeer, makeRabbit, makeGangi, makePumpkin, mat } from './models.js';
 import { Sfx } from './audio.js';
@@ -570,7 +570,10 @@ export class Island {
     const G = this.G, T = this.treasure;
     const prog = G.progress || 0;
     const color = this.G.zoneColor || '#3a4a6a';
-    const boss = { name: L(`${this.isl.name}の頭目`, `Boss of ${islandName(this.isl)}`), hp: 230 + prog * 260, pow: 18 + prog * 10, brave: Math.random() < 0.5 + prog * 0.3 };
+    const pool = [...zoneAt(this.isl.lon).captains, ...ISLAND_BOSSES];
+    const cap = pool[(Math.random() * pool.length) | 0];
+    this.cap = cap;
+    const boss = { name: L(`${cap.ja}（${this.isl.name}の頭目）`, `${cap.en} (boss of ${islandName(this.isl)})`), short: L(cap.ja, cap.en), hp: 230 + prog * 260, pow: 18 + prog * 10, brave: Math.random() < 0.5 + prog * 0.3 };
     this.boss = boss;
     const place = (cx, cz, r) => { for (let k = 0; k < 60; k++) { const a = rand(0, TAU), d = rand(2, r); const x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d; if (this.canWalk(x, z)) return [x, z]; } return null; };
     if (!T.taken) {
@@ -585,12 +588,12 @@ export class Island {
     this.totalEnemies = this.enemies.length;
   }
   addEnemy(type, x, z, color, group) {
-    const kind = type === 'gen' ? 'boss' : type === 'gun' ? 'gun' : 'ashi';
+    const kind = type === 'gen' ? (this.cap && this.cap.style === 'west' ? 'captain' : 'boss') : type === 'gun' ? 'gun' : 'ashi';
     const m = makeWarrior(this.G.final ? 'ghost' : kind, type === 'gen' ? '#2a2a40' : color);
     this.scene.add(m);
     const prog = this.G.progress || 0;
     const e = { type, x, z, hx: x, hz: z, alive: true, state: 'hold', group, face: rand(0, TAU), m, atkT: 0, cd: rand(0.5, 1.5), aimT: 0, aimA: 0, flash: 0, kvx: 0, kvz: 0, gait: rand(0, 6), trampleCd: 0, routT: 0, charge: 0, chargeT: 0, chargeCd: rand(2, 4), chargeA: 0, wobble: rand(0, TAU) };
-    if (type === 'gen') { e.r = 0.55; e.hp = e.maxHp = this.boss.hp * K.genHp; e.speed = this.boss.brave ? 7.6 : 6.6; e.dmg = this.boss.pow * K.dmg; e.reach = K.genReach; e.windup = 0.45; e.name = this.boss.name; }
+    if (type === 'gen') { e.r = 0.55; e.hp = e.maxHp = this.boss.hp * K.genHp; e.speed = this.boss.brave ? 7.6 : 6.6; e.dmg = this.boss.pow * K.dmg; e.reach = K.genReach; e.windup = 0.45; e.name = this.boss.name; e.short = this.boss.short; }
     else if (type === 'gun') { e.r = K.er; e.hp = e.maxHp = 24; e.speed = 4.4; e.dmg = (15 + prog * 4) * K.dmg; e.reach = 0; e.windup = 0.75; }
     else { e.r = K.er; e.hp = e.maxHp = 32 + prog * 10; e.speed = rand(4.6, 5.4); e.dmg = (8 + prog * 3) * K.dmg; e.reach = K.reach; e.windup = 0.42; }
     this.enemies.push(e);
@@ -843,7 +846,7 @@ export class Island {
       this.shake = 0.5; this.hitstop = 0.18;
       this.addPickup(e.x, e.z, K.genHeal, true);
       for (const s of this.enemies) if (s.alive && s.group === e.group) { s.state = 'rout'; s.routT = rand(3, 6); }
-      banner(L(`${e.name}を討ち取った！`, `${e.name} slain!`), L('配下の海賊は逃げ出した', 'His men scatter'));
+      banner(L(`${e.short}を討ち取った！`, `${e.short} slain!`), L('配下の海賊は逃げ出した', 'His men scatter'));
       msg(L(`${e.name}を討ち取った`, `Slew the ${e.name}`), 'kill', 4);
       G.gold += 40;
     } else {
@@ -1078,20 +1081,22 @@ export class Island {
   drawMini() {
     const cv = $('minimap'), g = cv.getContext('2d');
     const W = cv.width, H = cv.height;
-    if (!this.miniBg) {
-      const c = document.createElement('canvas'); c.width = 240; c.height = 240;
-      c.getContext('2d').drawImage(this.photo, 0, 0, 240, 240);
-      this.miniBg = c;
-    }
+    const P = this.P;
+    // 自分のまわり約 700m を拡大して見せる
+    const span = 700, s = W / span;
+    const half = this.size / 2, pw = this.photo.width / this.size;
     g.fillStyle = '#1c3a56'; g.fillRect(0, 0, W, H);
-    const s = Math.min(W, H) / this.size;
-    const ox = W / 2, oy = H / 2;
-    g.drawImage(this.miniBg, ox - this.size / 2 * s, oy - this.size / 2 * s, this.size * s, this.size * s);
-    const tx = (x) => ox + x * s, ty = (z) => oy + z * s;
-    for (const e of this.enemies) if (e.alive) { g.fillStyle = e.type === 'gen' ? '#ff3a3a' : '#ff9a7a'; g.fillRect(tx(e.x) - 1.5, ty(e.z) - 1.5, 3, 3); }
-    if (!this.treasure.taken) { g.fillStyle = '#ffd24a'; g.beginPath(); g.arc(tx(this.treasure.x), ty(this.treasure.z), 4, 0, TAU); g.fill(); }
-    g.fillStyle = '#ffffff'; g.fillRect(tx(this.ship.x) - 3, ty(this.ship.z) - 2, 6, 4);
-    g.fillStyle = '#ff4a3a'; g.beginPath(); g.arc(tx(this.P.x), ty(this.P.z), 3.5, 0, TAU); g.fill();
+    const sx = (P.x - span / 2 + half) * pw, sy = (P.z - span * H / W / 2 + half) * pw;
+    g.drawImage(this.photo, sx, sy, span * pw, span * H / W * pw, 0, 0, W, H);
+    const tx = (x) => (x - P.x) * s + W / 2, ty = (z) => (z - P.z) * s + H / 2;
+    for (const e of this.enemies) if (e.alive) { g.fillStyle = e.type === 'gen' ? '#ff3a3a' : '#ff9a7a'; g.fillRect(tx(e.x) - 2.5, ty(e.z) - 2.5, 5, 5); }
+    const T = this.treasure;
+    const clampP = (x, y) => [Math.max(6, Math.min(W - 6, x)), Math.max(6, Math.min(H - 6, y))];
+    if (!T.taken) { const [x, y] = clampP(tx(T.x), ty(T.z)); g.fillStyle = '#ffd24a'; g.beginPath(); g.arc(x, y, 5, 0, TAU); g.fill(); }
+    { const [x, y] = clampP(tx(this.ship.x), ty(this.ship.z)); g.fillStyle = '#ffffff'; g.fillRect(x - 4, y - 3, 8, 6); }
+    g.save(); g.translate(W / 2, H / 2); g.rotate(P.face);
+    g.fillStyle = '#ff3a2a'; g.beginPath(); g.moveTo(7, 0); g.lineTo(-5, -4.5); g.lineTo(-3, 0); g.lineTo(-5, 4.5); g.closePath(); g.fill();
+    g.restore();
   }
   resize() { this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix(); }
   dispose() {

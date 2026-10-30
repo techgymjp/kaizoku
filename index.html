@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>瀬戸内の海賊王</title>
-<meta name="description" content="小早川秀秋、海賊となる。大阪湾から壇ノ浦へ——瀬戸内海の有人島を 3D で再現した海賊アクション。">
+<meta name="description" content="小早川秀秋（あなた）、海賊となる。大阪湾から壇ノ浦へ——瀬戸内海の有人島を 3D で再現した海賊アクション。">
 <meta property="og:title" content="瀬戸内の海賊王">
 <meta property="og:description" content="大阪湾から下関へ。島に上陸して財宝を奪い、海賊船を沈め、壇ノ浦で平家の怨霊を討て。">
 <meta property="og:type" content="website">
@@ -24,7 +24,7 @@
 <!-- HUD -->
 <div id="hud" class="hidden">
   <div class="hud-left">
-    <div class="pname"><span class="mon">鎌</span><span data-en="Kobayakawa Hideaki <small>Pirate</small>">小早川秀秋 <small>海賊船「違い鎌」</small></span></div>
+    <div class="pname"><span class="mon">鎌</span><span id="hudName">小早川秀秋</span> <small data-en="Pirate captain">海賊船の船長</small></div>
     <div class="bar"><div id="hpbar" class="fill hp"></div><span class="lbl"><span data-en="HP">体力</span> <b id="hpnum">300</b></span></div>
     <div class="bar"><div id="hullbar" class="fill hull"></div><span class="lbl"><span data-en="Hull">船体</span> <b id="hullnum">300</b></span></div>
     <div class="bar sm"><div id="stbar" class="fill st"></div><span class="lbl" data-en="Dash">駆</span></div>
@@ -35,6 +35,7 @@
     <div><span data-en="Islands raided">奪った島</span> <b id="hIsl">0</b></div>
     <div><span data-en="Ships sunk">撃沈</span> <b id="hSunk">0</b></div>
     <div><span data-en="Foes slain">斬った敵</span> <b id="hKill">0</b></div>
+    <div class="esc"><span data-en="Ships hunting you">追ってくる船</span> <b id="hEsc">0</b></div>
     <div id="hPlace" class="place"></div>
     <div class="route"><div id="routebar"></div><span data-en="Osaka → Shimonoseki">大坂 → 下関</span></div>
     <div class="hud-btns"><button id="btnPause" class="mini-btn" data-en="II">止</button></div>
@@ -65,12 +66,13 @@
     <h1>瀬戸内の<br class="br-sp">海賊王</h1>
     <div class="title-sub" data-en="PIRATE KING OF THE SETO INLAND SEA"></div>
     <div id="story" class="story"></div>
+    <div class="name-row"><label for="nameInput" data-en="Your name">船長の名前</label><input id="nameInput" type="text" maxlength="14" autocomplete="off" spellcheck="false"><button id="nameReset" class="btn ghost small" data-en="Default">元に戻す</button></div>
     <button id="btnStart" class="btn primary" data-en="Set sail">出　航</button>
     <div class="lang-sel"><button class="lang-btn" data-lang="ja">日本語</button><button class="lang-btn" data-lang="en">English</button></div>
     <div class="controls">
       <div class="pc">
         <div class="ctl-h" data-en="At sea">海</div>
-        <div data-en="&lt;kbd&gt;W&lt;/kbd&gt;&lt;kbd&gt;S&lt;/kbd&gt; sails up/down　&lt;kbd&gt;A&lt;/kbd&gt;&lt;kbd&gt;D&lt;/kbd&gt; steer　&lt;kbd&gt;Space&lt;/kbd&gt; row hard (dash)"><kbd>W</kbd><kbd>S</kbd> 帆を上げる・下げる　<kbd>A</kbd><kbd>D</kbd> 舵　<kbd>Space</kbd> 漕ぎ（駆）</div>
+        <div data-en="&lt;kbd&gt;W&lt;/kbd&gt;&lt;kbd&gt;S&lt;/kbd&gt; sails up/down　&lt;kbd&gt;A&lt;/kbd&gt;&lt;kbd&gt;D&lt;/kbd&gt; steer　&lt;kbd&gt;Space&lt;/kbd&gt; full speed (dash)"><kbd>W</kbd><kbd>S</kbd> 帆を上げる・下げる　<kbd>A</kbd><kbd>D</kbd> 舵　<kbd>Space</kbd> 全速（駆）</div>
         <div data-en="&lt;kbd&gt;J&lt;/kbd&gt; / Left click: matchlock volley　&lt;kbd&gt;K&lt;/kbd&gt; / Right click: fire bomb (uses dash)　&lt;kbd&gt;E&lt;/kbd&gt; land"><kbd>J</kbd> / 左クリック：鉄砲の一斉射撃　<kbd>K</kbd> / 右クリック：焙烙玉（駆を使う）　<kbd>E</kbd> 上陸</div>
         <div class="ctl-h" data-en="On islands (Kobayakawa style)">島（小早川の戦い方）</div>
         <div data-en="&lt;kbd&gt;WASD&lt;/kbd&gt; move　&lt;kbd&gt;J&lt;/kbd&gt; sword (3rd hit spins, deflects bullets)　&lt;kbd&gt;K&lt;/kbd&gt; spear (pierces 2)　&lt;kbd&gt;Space&lt;/kbd&gt; dash　Rice balls heal"><kbd>WASD</kbd> 移動　<kbd>J</kbd> 刀（3連で回転斬り・弾を弾く）　<kbd>K</kbd> 槍（2人まで貫く）　<kbd>Space</kbd> 駆　おむすびで回復</div>

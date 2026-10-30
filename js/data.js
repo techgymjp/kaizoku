@@ -57,16 +57,43 @@ export const WHIRLPOOLS = [
 ];
 
 // 海域（東から西へ）。faction: 出てくる海賊
+// 海賊（古今東西）。style: jp = 和船、west = 西洋の帆船、cn = ジャンク
+const P = (ja, en, style) => ({ ja, en, style });
 export const ZONES = [
-  { lon: 135.6, name: '大阪湾', en: 'Osaka Bay', faction: { name: '雑賀衆', en: 'Saika Band', crest: '雑', color: '#5a3a1a' }, rate: 0.6, max: 2 },
-  { lon: 134.97, name: '播磨灘', en: 'Harima Sea', faction: { name: '家島の海賊', en: 'Ieshima Pirates', crest: '家', color: '#2a4a3a' }, rate: 0.8, max: 3 },
-  { lon: 134.30, name: '備讃瀬戸', en: 'Bisan Strait', faction: { name: '塩飽水軍', en: 'Shiaku Navy', crest: '塩', color: '#1c3a6a' }, rate: 1.0, max: 3 },
-  { lon: 133.55, name: '備後灘', en: 'Bingo Sea', faction: { name: '鞆の浦の海賊', en: 'Tomonoura Pirates', crest: '鞆', color: '#4a2a5a' }, rate: 1.0, max: 4 },
-  { lon: 133.22, name: '芸予諸島', en: 'Geiyo Islands', faction: { name: '村上水軍', en: 'Murakami Navy', crest: 'maru', color: '#1a2a4a' }, rate: 1.3, max: 5 },
-  { lon: 132.78, name: '安芸灘・広島湾', en: 'Aki Sea & Hiroshima Bay', faction: { name: '毛利水軍', en: 'Mōri Navy', crest: '毛', color: '#3a1a1a' }, rate: 1.2, max: 4 },
-  { lon: 132.15, name: '伊予灘・周防灘', en: 'Iyo & Suō Seas', faction: { name: '周防の海賊', en: 'Suō Pirates', crest: '周', color: '#2a3a2a' }, rate: 1.1, max: 4 },
-  { lon: 131.10, name: '関門海峡', en: 'Kanmon Strait', faction: { name: '平家の怨霊', en: 'Heike Ghosts', crest: 'heike', color: '#8a1010' }, rate: 0, max: 0 },
+  { lon: 135.6, name: '大阪湾', en: 'Osaka Bay', rate: 0.6, max: 2,
+    faction: { name: '九鬼水軍とキッド一味', en: 'the Kuki Navy & Kidd’s crew', crest: '九', color: '#5a3a1a' },
+    captains: [P('九鬼嘉隆', 'Kuki Yoshitaka', 'jp'), P('キャプテン・キッド', 'Captain Kidd', 'west'), P('ヘンリー・エヴリー', 'Henry Every', 'west')] },
+  { lon: 134.97, name: '播磨灘', en: 'Harima Sea', rate: 0.8, max: 3,
+    faction: { name: '黒ひげ海賊団', en: 'Blackbeard’s crew', crest: 'skull', color: '#222222' },
+    captains: [P('黒ひげ', 'Blackbeard', 'west'), P('スティード・ボネット', 'Stede Bonnet', 'west'), P('チャールズ・ヴェイン', 'Charles Vane', 'west'), P('サミュエル・ベラミー', 'Samuel Bellamy', 'west')] },
+  { lon: 134.30, name: '備讃瀬戸', en: 'Bisan Strait', rate: 1.0, max: 3,
+    faction: { name: 'バルバロッサ艦隊', en: 'Barbarossa’s fleet', crest: '☾', color: '#5a1a1a' },
+    captains: [P('ハイレッディン・バルバロッサ', 'Hayreddin Barbarossa', 'west'), P('ウルージ・レイス', 'Oruç Reis', 'west'), P('ドラグート', 'Dragut', 'west')] },
+  { lon: 133.55, name: '備後灘', en: 'Bingo Sea', rate: 1.0, max: 4,
+    faction: { name: '女海賊連合', en: 'the pirate queens', crest: 'skull', color: '#4a2a5a' },
+    captains: [P('鄭一嫂', 'Ching Shih', 'cn'), P('グレイス・オマリー', 'Grace O’Malley', 'west'), P('アン・ボニー', 'Anne Bonny', 'west'), P('メアリー・リード', 'Mary Read', 'west'), P('キャラコ・ジャック', 'Calico Jack', 'west')] },
+  { lon: 133.22, name: '芸予諸島', en: 'Geiyo Islands', rate: 1.3, max: 5,
+    faction: { name: '村上水軍', en: 'the Murakami Navy', crest: 'maru', color: '#1a2a4a' },
+    captains: [P('村上武吉', 'Murakami Takeyoshi', 'jp'), P('村上通康', 'Murakami Michiyasu', 'jp'), P('村上吉充', 'Murakami Yoshimitsu', 'jp'), P('村上元吉', 'Murakami Motoyoshi', 'jp')] },
+  { lon: 132.78, name: '安芸灘・広島湾', en: 'Aki Sea & Hiroshima Bay', rate: 1.2, max: 4,
+    faction: { name: 'バッカニア', en: 'the Buccaneers', crest: 'skull', color: '#3a1a1a' },
+    captains: [P('ヘンリー・モーガン', 'Henry Morgan', 'west'), P('フランソワ・ロロネー', 'François l’Olonnais', 'west'), P('バーソロミュー・ロバーツ', 'Bartholomew Roberts', 'west'), P('エドワード・ロー', 'Edward Low', 'west')] },
+  { lon: 132.15, name: '伊予灘・周防灘', en: 'Iyo & Suō Seas', rate: 1.1, max: 4,
+    faction: { name: '倭寇と南海の海賊', en: 'the Wakō & South Sea pirates', crest: '倭', color: '#2a3a2a' },
+    captains: [P('藤原純友', 'Fujiwara no Sumitomo', 'jp'), P('王直', 'Wang Zhi', 'cn'), P('鄭芝龍', 'Zheng Zhilong', 'cn'), P('張保仔', 'Cheung Po Tsai', 'cn'), P('林鳳', 'Limahong', 'cn')] },
+  { lon: 131.10, name: '関門海峡', en: 'Kanmon Strait', rate: 0, max: 0,
+    faction: { name: '平家の怨霊', en: 'the Heike Ghosts', crest: 'heike', color: '#8a1010' }, captains: [] },
 ];
+// 島の頭目（上陸先の海域の海賊に、ここから足す）
+export const ISLAND_BOSSES = [P('ウィリアム・ダンピア', 'William Dampier', 'west'), P('ジャン・ラフィット', 'Jean Lafitte', 'west'), P('トマス・テュー', 'Thomas Tew', 'west'),
+  P('クラウス・シュテルテベーカー', 'Klaus Störtebeker', 'west'), P('エドワード・イングランド', 'Edward England', 'west'), P('フランシス・ドレーク', 'Francis Drake', 'west'),
+  P('鄭一', 'Zheng Yi', 'cn'), P('来島通総', 'Kurushima Michifusa', 'jp'), P('真鍋貞友', 'Manabe Sadatomo', 'jp'), P('忽那重清', 'Kutsuna Shigekiyo', 'jp')];
+const SHIP_NAMES = { jp: { kobaya: ['小早', 'kobaya'], seki: ['関船', 'sekibune'], ataka: ['安宅船', 'atakebune'] }, west: { kobaya: ['スループ', 'sloop'], seki: ['ブリガンティン', 'brigantine'], ataka: ['ガレオン', 'galleon'] }, cn: { kobaya: ['小ジャンク', 'junk'], seki: ['ジャンク', 'war junk'], ataka: ['大ジャンク', 'great junk'] } };
+export function shipName(cap, type, lang) {
+  const n = SHIP_NAMES[cap.style][type];
+  if (lang === 'en') return type === 'ataka' ? `${cap.en}'s flagship (${n[1]})` : type === 'seki' ? `${cap.en}'s ${n[1]}` : `${n[1]} of ${cap.en}'s crew`;
+  return type === 'ataka' ? `${cap.ja}の旗艦（${n[0]}）` : type === 'seki' ? `${cap.ja}の${n[0]}` : `${cap.ja}一味の${n[0]}`;
+}
 export function zoneAt(lon) {
   let z = ZONES[0];
   for (const q of ZONES) if (lon <= q.lon) z = q;
@@ -112,15 +139,15 @@ export const ISLAND_NOTES = {
 };
 
 export const STORY = [
-  '慶長七年。関ヶ原で東西両軍を斬り抜けた小早川秀秋は、死んだことにして大坂を逃れた。',
-  '手に入れたのは一艘の海賊船。帆には違い鎌の紋。',
-  '目指すは西の果て、下関。瀬戸内の島々に眠る財宝を奪い、海賊どもを沈め、',
+  '慶長七年。関ヶ原で東西両軍を斬り抜けた{name}は、死んだことにして大坂を逃れた。',
+  '手に入れたのは一艘の海賊船。黒い帆には髑髏と違い鎌。',
+  '目指すは西の果て、下関。瀬戸内の島々に眠る財宝を奪い、黒ひげ・バルバロッサ・村上武吉・鄭一嫂——古今東西の海賊どもを沈め、',
   '壇ノ浦に巣くう平家の怨霊を討ち果たせば——その名は「瀬戸内の海賊王」。',
 ];
 export const STORY_EN = [
-  'Keichō 7 (1602). Having cut his way through both armies at Sekigahara, Kobayakawa Hideaki faked his own death and slipped out of Osaka.',
-  'All he has left is one pirate ship, its sail bearing the crossed-sickle crest.',
-  'Sail west to Shimonoseki. Plunder the treasure hidden on the islands of the Seto Inland Sea and sink every pirate in your way.',
+  'Keichō 7 (1602). Having cut through both armies at Sekigahara, {name} faked a death and slipped out of Osaka.',
+  'All that is left is one pirate ship, its black sails marked with a skull and crossed sickles.',
+  'Sail west to Shimonoseki. Plunder the island treasures and sink the pirates of every age and land — Blackbeard, Barbarossa, Murakami Takeyoshi, Ching Shih.',
   'Destroy the Heike ghosts haunting Dan-no-ura — and you will be the Pirate King of the Seto Inland Sea.',
 ];
 

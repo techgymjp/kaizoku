@@ -225,7 +225,7 @@ h1 { text-shadow: 0 0 24px rgba(30,90,140,.8), 3px 3px 0 var(--red), 0 6px 18px 
 .route { position: relative; margin: 4px 0 0 auto; width: 170px; height: 14px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.3); border-radius: 2px; overflow: hidden; }
 .route span { position: absolute; inset: 0; font-size: 10px; line-height: 14px; text-align: center; color: #fff; }
 #routebar { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #2a6a9a, #c0161b); }
-#minimap { width: 300px; height: 200px; background: #1c3a56; }
+#minimap { width: 330px; height: 220px; background: #1c3a56; }
 #landPrompt { position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%); background: rgba(6,14,20,.82); border: 1px solid var(--gold); border-radius: 4px; padding: 8px 18px; text-align: center; font-size: 16px; line-height: 1.6; pointer-events: none; text-shadow: 0 1px 3px #000; }
 #landPrompt small { color: #c8b890; }
 #landPrompt .gold { color: var(--gold); font-weight: 700; }
@@ -253,3 +253,8 @@ body.touch .help { display: none; }
 }
 .legal { margin-top: 14px; font-size: 11px; color: rgba(255,255,255,.6); text-shadow: 0 1px 3px #000; line-height: 1.6; }
 .r-list .chip.on { background: rgba(227,188,92,.3); color: #fff; border-color: var(--gold); }
+.name-row { margin: 16px auto 0; display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.name-row label { color: var(--gold); font-weight: 700; letter-spacing: .1em; }
+.name-row input { font-family: var(--mincho); font-weight: 700; font-size: 18px; width: 220px; padding: 6px 10px; color: #fff; background: rgba(0,0,0,.55); border: 1px solid var(--gold); border-radius: 4px; text-align: center; user-select: text; -webkit-user-select: text; }
+.name-row input:focus { outline: 2px solid var(--red); }
+@media (max-height: 500px) { .name-row { margin-top: 8px; } .name-row input { font-size: 15px; padding: 3px 8px; } }

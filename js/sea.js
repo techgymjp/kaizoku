@@ -364,6 +364,18 @@ export class Sea {
     }
     return best ? { isl: best, d: bd } : null;
   }
+  // 案内する島：いまの場所より西にある、財宝の残る島のうちいちばん近い港。無ければ下関
+  navHarbor() {
+    const P = this.P; let best = null, bd = 1e9;
+    for (const isl of this.G.islands) {
+      if (!isl.harbor || this.G.taken.has(isl.id)) continue;
+      if (isl.harbor.x > P.x - 5) continue; // 東（後ろ）の島は案内しない
+      const d = Math.hypot(isl.harbor.x - P.x, isl.harbor.z - P.z);
+      if (d < bd) { bd = d; best = isl; }
+    }
+    if (best) return { isl: best, d: bd, x: best.harbor.x, z: best.harbor.z };
+    return { goal: true, d: Math.hypot(this.goal.x - P.x, this.goal.z - P.z), x: this.goal.x, z: this.goal.z };
+  }
   // 地図に載っている島の名前（無人島を含む）
   buildNames() {
     const inh = this.G.islands.map((i) => ({ n: i.name, x: (i.merged ? i.px : i.cx) * SEA_K, z: (i.merged ? i.py : i.cy) * SEA_K }));
@@ -798,7 +810,7 @@ export class Sea {
     this.updateSky(G.progress, G.final);
     for (const isl of G.islands) if (isl.harbor) { const b = isl.harbor.beam; const d = Math.hypot(isl.harbor.x - P.x, isl.harbor.z - P.z); b.visible = d < 3500 && !G.taken.has(isl.id); if (b.visible) b.scale.set(1 + d / 1500, 1, 1 + d / 1500); }
     this.beamMat.opacity = 0.18 + Math.sin(this.t * 3) * 0.06;
-    this.nav = this.nearestHarbor();
+    this.nav = this.navHarbor();
     this.updateChunks(false);
     this.updateCamera(dt, I);
     this.water.position.set(Math.round(this.camera.position.x / 50) * 50, 0, Math.round(this.camera.position.z / 50) * 50);

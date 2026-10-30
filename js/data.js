@@ -62,7 +62,7 @@ export const LANDMARKS = [
   { id: 'akama', name: '赤間神宮 水天門', en: 'the Suitenmon gate of Akama Shrine', kind: 'suitenmon', lon: 130.94850, lat: 33.96000, h: 12 },
   { id: 'dannoura', name: '壇ノ浦古戦場', en: 'the Dan-no-ura battlefield', kind: 'tomomori', lon: 130.95740, lat: 33.96820, h: 6 },
   { id: 'mojiko', name: '和布刈神社', en: 'Mekari Shrine', kind: 'shrine', lon: 130.96430, lat: 33.96060, h: 6 },
-  { id: 'ganryu', name: '巌流島（船島）', en: 'Ganryūjima (Funashima)', kind: 'tomomori', lon: 130.9117, lat: 33.9483, h: 6 },
+  { id: 'ganryu', name: '巌流島 宮本武蔵と佐々木小次郎の像', en: 'Ganryūjima: statues of Miyamoto Musashi and Sasaki Kojirō', kind: 'ganryu', lon: 130.9117, lat: 33.9483, h: 6 },
   { id: 'tomogashima', name: '友ヶ島灯台', en: 'Tomogashima Lighthouse', kind: 'lighthouse', lon: 135.0020, lat: 34.2800, h: 12 },
 ];
 

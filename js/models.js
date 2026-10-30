@@ -722,3 +722,42 @@ export function makeMusket() {
   g.userData = { muzzle, match, kick: 0 };
   return g;
 }
+
+// ---- 巌流島の像：宮本武蔵と佐々木小次郎（銅像。高さ h、向かい合わせ） ----
+function bronzeFigure(h, who) {
+  const g = new THREE.Group();
+  const B = new THREE.MeshLambertMaterial({ color: '#6e6038' }), D = new THREE.MeshLambertMaterial({ color: '#4e4428' });
+  const s = h / 2; // 人の背丈を 2 として作る
+  const part = (w, hh, d, x, y, z, m = B, rx = 0, rz = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w * s, hh * s, d * s), m); o.position.set(x * s, y * s, z * s); o.rotation.set(rx, 0, rz); g.add(o); return o; };
+  // 袴をはいた下半身（踏み出した足）
+  part(0.32, 0.9, 0.4, -0.22, 0.45, who === 'musashi' ? 0.15 : -0.1, D, who === 'musashi' ? -0.35 : 0.2);
+  part(0.32, 0.9, 0.4, 0.22, 0.45, who === 'musashi' ? -0.2 : 0.2, D, who === 'musashi' ? 0.3 : -0.3);
+  part(0.8, 0.45, 0.55, 0, 0.95, 0, D); // 袴の腰
+  part(0.62, 0.6, 0.36, 0, 1.4, 0); // 胴
+  part(0.24, 0.26, 0.24, 0, 1.86, 0.02); // 頭
+  if (who === 'musashi') {
+    part(0.26, 0.06, 0.26, 0, 1.92, 0.02, D); // 鉢巻
+    // 両腕を振りかぶり、櫂を削った木刀を頭上に
+    part(0.12, 0.6, 0.12, -0.25, 1.95, -0.05, B, 0.3, 0.3);
+    part(0.12, 0.6, 0.12, 0.25, 1.95, -0.05, B, 0.3, -0.3);
+    part(0.07, 0.07, 1.5, 0, 2.35, -0.3, D, -0.5); // 長い木刀（櫂）
+    part(0.05, 0.05, 0.6, 0.38, 1.0, 0.2, D, 1.2); // 腰の小刀
+  } else {
+    part(0.14, 0.14, 0.14, 0, 2.03, -0.1, D); // 結った髪
+    part(0.5, 0.2, 0.36, 0, 1.68, -0.05, D); // 陣羽織の肩
+    // 物干し竿（長刀）を肩の上に構える
+    part(0.12, 0.55, 0.12, -0.28, 1.6, 0.18, B, -1.0, 0.2);
+    part(0.12, 0.55, 0.12, 0.28, 1.7, 0.05, B, -0.6, -0.4);
+    part(0.04, 0.04, 2.0, 0.1, 2.1, -0.5, new THREE.MeshLambertMaterial({ color: '#a89a70' }), 0.55); // 長い刀身
+    part(0.05, 0.05, 0.9, -0.42, 1.0, -0.1, D, 0.9); // 鞘
+  }
+  return g;
+}
+export function makeGanryu(h = 6) {
+  const g = new THREE.Group();
+  const stone = new THREE.MeshLambertMaterial({ color: '#8a867c' });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(h * 2.6, h * 0.12, h * 1.1), stone); base.position.y = h * 0.06; g.add(base);
+  const m = bronzeFigure(h, 'musashi'); m.position.set(-h * 0.7, h * 0.12, 0); m.rotation.y = Math.PI / 2; g.add(m);
+  const k = bronzeFigure(h, 'kojiro'); k.position.set(h * 0.7, h * 0.12, 0); k.rotation.y = -Math.PI / 2; g.add(k);
+  return g;
+}

@@ -2,7 +2,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { DEM, SEA_K, VEX, hPx, hSea, ll2sea, sea2ll, ll2px, isLandPx, compAt, nearestLandPx } from './geo.js';
 import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, DANNOURA, shipName, WIND, TIDE, STRAITS, HARBOR_HINT } from './data.js';
-import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
+import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeGanryu, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
 import { L, islandName, getLang, romaji } from './i18n.js';
@@ -310,6 +310,7 @@ export class Sea {
         case 'pumpkin': o = makePumpkin(hs); break;
         case 'lighthouse': o = makeLighthouse(hs); break;
         case 'suitenmon': { o = new THREE.Group(); const gate = makeHall(hs * 0.8, hs * 0.4, hs * 0.5, '#2a6a5a', '#f4f0e8', '#e03820'); o.add(gate); const base = new THREE.Mesh(new THREE.BoxGeometry(hs * 1.2, hs * 0.2, hs * 0.6), mat('#f4f0e8')); o.add(base); break; }
+        case 'ganryu': o = makeGanryu(hs * 0.9); break;
         case 'tomomori': { o = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(hs * 0.4, hs * 0.5, hs * 0.4), mat('#7a766a')); b.position.y = hs * 0.25; o.add(b); const st = new THREE.Mesh(new THREE.CylinderGeometry(hs * 0.08, hs * 0.12, hs * 0.6, 6), mat('#3a4a3a')); st.position.y = hs * 0.8; o.add(st); const anc = new THREE.Mesh(new THREE.TorusGeometry(hs * 0.18, hs * 0.04, 6, 10), mat('#3a4a3a')); anc.position.y = hs * 1.25; o.add(anc); break; }
         case 'sandbar': {
           o = new THREE.Mesh(new THREE.BoxGeometry(3, 0.4, 40), mat('#e6d8b0')); o.rotation.y = 0.5; o.userData.tide = true; break;

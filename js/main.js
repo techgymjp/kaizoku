@@ -96,7 +96,7 @@ canvas.addEventListener('wheel', (e) => { I.wheel += e.deltaY; e.preventDefault(
 
 // ---------------- 船長の名前 ----------------
 const nameInput = $('nameInput');
-const defaultName = () => L('小早川秀秋', 'Kobayakawa Hideaki');
+const defaultName = () => L('源義経', 'Minamoto no Yoshitsune'); // 仮の名前（源平合戦がモチーフ）
 let customName = '';
 try { customName = localStorage.getItem('kaizoku.name') || ''; } catch (e) { /* 保存できなくても遊べる */ }
 export function playerName() { return customName.trim() || defaultName(); }
@@ -163,7 +163,7 @@ function renderStory(keepName) {
   if (!keepName) syncName();
   const lines = getLang() === 'en' ? STORY_EN : STORY;
   const nm = playerName().replace(/[<>&]/g, '');
-  $('story').innerHTML = lines.map((l) => `<p>${l.replace('{name}', `<b>${nm}</b>`)}</p>`).join('');
+  const st = $('story'); if (st) st.innerHTML = lines.map((l) => `<p>${l.replace('{name}', `<b>${nm}</b>`)}</p>`).join('');
   $('btnMute').textContent = Sfx.muted ? L('音：切', 'Sound: off') : L('音：入', 'Sound: on');
 }
 for (const b of document.querySelectorAll('.lang-btn')) b.addEventListener('click', () => { setLang(b.dataset.lang); renderStory(); updateHelp(); });

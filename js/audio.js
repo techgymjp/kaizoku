@@ -309,6 +309,7 @@ export const Sfx = (() => {
     const t = ac.currentTime;
     if (player) { const p = player; p.g.gain.setTargetAtTime(0.0001, t, 0.4); setTimeout(() => { try { p.src.stop(); } catch (e) { /* もう止まっている */ } }, 2500); }
     const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+    if (buf.loopLen && buf.loopLen < buf.duration) { src.loopStart = 0; src.loopEnd = buf.loopLen; }
     const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1, t + 0.8);
     src.connect(g); g.connect(bgmBus); src.start(t + 0.05);
     player = { src, g, mode };
@@ -446,9 +447,10 @@ export const Sfx = (() => {
     ['drum', 0.5, 0.5], ['cannon', 1.0, 0.6], ['splash', 1.1, 0.4, 2], ['crack', 0.45, 0.45, 2], ['sink', 2.4], ['coin', 0.4], ['bomb', 1.1], ['whoosh', 0.4],
     ['oar', 0.3], ['launch', 0.9], ['boom', 1.8, null, 3], ['fanfare', 1.5], ['dirge', 2.2], ['bell', 5.2], ['treasure', 1.1]];
   const sfxBuf = {};
-  async function renderSfx() {
+  async function renderSfx(onlyMissing) {
     const sr = 32000;
     for (const [name, dur, , variants = 1] of SFX) {
+      if (onlyMissing && sfxBuf[name] && sfxBuf[name].length) continue;
       sfxBuf[name] = [];
       for (let v = 0; v < variants; v++) {
         const off = new OfflineAudioContext(1, Math.ceil((dur + 0.05) * sr), sr);
@@ -484,7 +486,29 @@ export const Sfx = (() => {
     };
   }
   api.sfxCount = () => Object.values(sfxBuf).filter((l) => l.length).length + '/' + SFX.length;
-  const startBgmRender = renderAll;
-  renderAllHook = async () => { await renderSfx(); await startBgmRender(); };
+  // 音のファイル（assets/audio/*.mp3。tools/render-audio.cjs で書き出したもの）を読み込む。無ければその場で書き出す
+  const SONG_LIST = ['title', 'sea', 'battle', 'island', 'final', 'clear'];
+  async function loadFile(url) { const r = await fetch(url); if (!r.ok) throw new Error(url); return await ac.decodeAudioData(await r.arrayBuffer()); }
+  async function loadAll() {
+    let manifest = null;
+    try { manifest = await (await fetch('assets/audio/manifest.json')).json(); } catch (e) { manifest = null; }
+    if (manifest) {
+      // 効果音（短いので先に）
+      await Promise.all(SFX.map(async ([name]) => {
+        const n = manifest.sfx[name] || 0; const list = [];
+        for (let v = 0; v < n; v++) { try { list.push(await loadFile(`assets/audio/sfx-${name}-${v}.mp3`)); } catch (e) { /* 無い */ } }
+        if (list.length) sfxBuf[name] = list;
+      }));
+      for (const m of SONG_LIST) {
+        try { const b = await loadFile(`assets/audio/bgm-${m}.mp3`); b.loopLen = manifest.bgm[m]; rendered[m] = b; if (bgm.mode === m && (!player || player.mode !== m)) playRendered(m); } catch (e) { /* 無い */ }
+      }
+    }
+    // 読み込めなかったものだけ、その場で書き出す
+    if (SFX.some(([n]) => !sfxBuf[n] || !sfxBuf[n].length)) await renderSfx(true);
+    for (const m of SONG_LIST) if (!rendered[m]) { try { await renderSong(m); } catch (e) { /* その場で鳴らす */ } }
+  }
+  renderAllHook = loadAll;
+  // 書き出し用（tools/render-audio.cjs から使う）
+  api._export = { renderSong, renderSfx, sfxBuf, rendered, SFX, SONG_LIST, songLoop: (m) => { const S = SONGS[m]; return S.bars.length * 6 * (60 / S.dq / 3); } };
   return api;
 })();

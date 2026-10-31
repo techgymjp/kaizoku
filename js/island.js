@@ -669,14 +669,14 @@ export class Island {
     for (let k = 0; k < 4000; k++) {
       const x = rand(-this.size / 2, this.size / 2), z = rand(-this.size / 2, this.size / 2);
       if (!this.canWalkLoose(x, z)) continue;
-      const d = hypot(x - px, z - pz); if (d > 750) continue;
-      const h = this.hAt(x, z); if (h > hh) { hh = h; hi = { x, z, w: 1, name: L('島の頂', 'summit') }; }
+      const d = hypot(x - px, z - pz); if (d < 200 || d > 400) continue;
+      const h = this.hAt(x, z); if (h > hh) { hh = h; hi = { x, z, w: 1, name: L('島の高台', 'hilltop') }; }
     }
     if (hi) cands.push(hi);
     let best = null, bs = -1e9;
     for (const c of cands) {
       const d = hypot(c.x - px, c.z - pz);
-      const s = c.w * 100 - Math.abs(d - 320) * 0.5 - (d > 800 ? 500 : 0) - (d < 60 ? 300 : 0);
+      const s = c.w * 30 - Math.abs(d - 300) * 2 - (d > 420 ? 2000 : 0) - (d < 150 ? 2000 : 0); // 港から 300m 前後を選ぶ
       if (s > bs) { bs = s; best = c; }
     }
     if (!best) {

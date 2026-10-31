@@ -37,7 +37,7 @@ function cutaway(m) {
 
 // 戦いの数値（小早川の値を、1 画素 ≒ 4.5cm として m に直したもの）
 const K = {
-  walk: 6.6, dashMul: 1.9, swordR: 2.7, spinR: 3.2, swordArc: 1.25, spearLen: 4.8, spearChargeLen: 5.8, spearHalf: 0.75,
+  walk: 13.2, dashMul: 1.9, // 歩きは小早川の 2 倍（財宝まで速く行けるように） swordR: 2.7, spinR: 3.2, swordArc: 1.25, spearLen: 4.8, spearChargeLen: 5.8, spearHalf: 0.75,
   pr: 0.5, er: 0.42, reach: 1.0, genReach: 1.3, gunRange: 26, bulletSp: 34, knock: 7,
   SPEAR_ST: 14, PIERCE: 2, dmg: 1.24, genHp: 1.29, genHeal: 46, dropRate: 0.05, regen: 1.5,
 };
@@ -652,9 +652,9 @@ export class Island {
     this.scene.add(m);
     const prog = this.G.progress || 0;
     const e = { type, x, z, hx: x, hz: z, alive: true, state: 'hold', group, face: rand(0, TAU), m, atkT: 0, cd: rand(0.5, 1.5), aimT: 0, aimA: 0, flash: 0, kvx: 0, kvz: 0, gait: rand(0, 6), trampleCd: 0, routT: 0, charge: 0, chargeT: 0, chargeCd: rand(2, 4), chargeA: 0, wobble: rand(0, TAU) };
-    if (type === 'gen') { const b = info || this.boss; e.info = b; e.r = 0.55; e.hp = e.maxHp = b.hp * K.genHp; e.speed = b.brave ? 7.6 : 6.6; e.dmg = b.pow * K.dmg; e.reach = K.genReach; e.windup = 0.45; e.name = b.name; e.short = b.short; }
-    else if (type === 'gun') { e.r = K.er; e.hp = e.maxHp = 24; e.speed = 4.4; e.dmg = (15 + prog * 4) * K.dmg; e.reach = 0; e.windup = 0.75; }
-    else { e.r = K.er; e.hp = e.maxHp = 32 + prog * 10; e.speed = rand(4.6, 5.4); e.dmg = (8 + prog * 3) * K.dmg; e.reach = K.reach; e.windup = 0.42; }
+    if (type === 'gen') { const b = info || this.boss; e.info = b; e.r = 0.55; e.hp = e.maxHp = b.hp * K.genHp; e.speed = (b.brave ? 7.6 : 6.6) * 2; e.dmg = b.pow * K.dmg; e.reach = K.genReach; e.windup = 0.45; e.name = b.name; e.short = b.short; }
+    else if (type === 'gun') { e.r = K.er; e.hp = e.maxHp = 24; e.speed = 8.8; e.dmg = (15 + prog * 4) * K.dmg; e.reach = 0; e.windup = 0.75; }
+    else { e.r = K.er; e.hp = e.maxHp = 32 + prog * 10; e.speed = rand(9.2, 10.8); e.dmg = (8 + prog * 3) * K.dmg; e.reach = K.reach; e.windup = 0.42; }
     this.enemies.push(e);
     return e;
   }
@@ -772,7 +772,7 @@ export class Island {
       P.dashing = false; P.dashT = 0;
       if (G.stDelay > 0) G.stDelay -= dt; else G.st = Math.min(G.maxSt, G.st + 24 * dt);
     }
-    const base = K.walk * (P.dashing ? 2.2 + Math.min(1.8, P.dashT * 0.9) : 1) * (P.atk && P.atk.type === 'spear' && !P.atk.charge ? 0.55 : 1);
+    const base = K.walk * (P.dashing ? 1.6 + Math.min(1.0, P.dashT * 0.5) : 1) * (P.atk && P.atk.type === 'spear' && !P.atk.charge ? 0.55 : 1);
     if (ml > 0) {
       const tf = this.slopeFactor(P.x, P.z, mx / ml, mz / ml);
       const k = 1 - Math.exp(-dt * (P.dashing ? 9 : 12));
@@ -787,7 +787,7 @@ export class Island {
     const py = this.onPlank(P.x, P.z);
     P.y = py !== null ? Math.max(py, this.hAt(P.x, P.z)) : Math.max(this.hAt(P.x, P.z), -0.6);
     const sp = hypot(P.vx, P.vz);
-    P.gait += sp * dt * 1.6;
+    P.gait += sp * dt * 1.0;
     if (sp > 3) { P.stepT -= dt; if (P.stepT <= 0) { P.stepT = P.dashing ? 0.18 : 0.3; Sfx.gallop(); if (P.dashing) this.dust(P.x, P.z, 1); } }
     if (P.y < 0.2 && sp > 2 && Math.random() < 0.3) this.sprite('#e0f0ff', P.x, 0.2, P.z, 0.5, 0.4, rand(-1, 1), rand(1, 3), rand(-1, 1), 1); // 波しぶき
 
@@ -953,7 +953,7 @@ export class Island {
       const nx = e.x + mx * spd * tf * dt, nz = e.z + mz * spd * tf * dt;
       if (this.canWalk(nx, nz)) { e.x = nx; e.z = nz; }
       else if (this.canWalk(nx, e.z)) e.x = nx; else if (this.canWalk(e.x, nz)) e.z = nz;
-      e.gait += spd * tf * dt * 1.7; moving = true;
+      e.gait += spd * tf * dt * 1.0; moving = true;
       e.face = Math.atan2(mz, mx);
     };
     if (e.state === 'hold') {

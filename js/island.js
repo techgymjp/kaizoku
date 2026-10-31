@@ -775,6 +775,8 @@ export class Island {
       const jx = Math.abs(I.joy.x) > 0.15 ? I.joy.x : 0, jy = Math.abs(I.joy.y) > 0.15 ? -I.joy.y : 0;
       fwd += jy > 0 ? jy : jy * 0.6; turn += jx;
     }
+    // 全速ボタンを押している間は、スティックを倒さなくても前へ走る（海の全速と同じ）
+    if ((I.down('Space') || I.down('ShiftLeft') || I.down('ShiftRight') || I.down('KeyL') || I.tDash) && fwd <= 0) fwd = 1;
     fwd = clamp(fwd, -0.6, 1); turn = clamp(turn, -1, 1);
     P.heading = (P.heading ?? P.face) + turn * dt * (fwd ? 2.2 : 2.8);
     if (!P.atk) P.face = P.heading;

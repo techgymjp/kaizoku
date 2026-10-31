@@ -5,7 +5,7 @@ import { DEM, hPx, px2ll, lon2gx, lat2gy, gx2lon, gy2lat, loadImage, fetchWithTi
 import { LANDMARKS, ISLAND_NOTES, ISLAND_NOTES_EN, ISLAND_BOSSES, ZONES, zoneAt } from './data.js';
 import { decodeMVT } from './mvt.js';
 import { Fireworks } from './fireworks.js';
-import { makeFishingPort, makeCrewman, makeWarrior, poseWarrior, makeTorii, makeHall, makePagoda, makeJoyato, makeChest, makeOnigiri, makeShip, makeDeer, makeRabbit, makeGangi, makePumpkin, mat } from './models.js';
+import { animateChest, makeFishingPort, makeCrewman, makeWarrior, poseWarrior, makeTorii, makeHall, makePagoda, makeJoyato, makeChest, makeOnigiri, makeShip, makeDeer, makeRabbit, makeGangi, makePumpkin, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
 import { L, islandName } from './i18n.js';
@@ -588,7 +588,7 @@ export class Island {
     chest.position.set(best.x, this.hAt(best.x, best.z), best.z);
     this.scene.add(chest);
     const taken = G.taken.has(this.isl.id);
-    if (taken) { chest.userData.beam.visible = false; chest.userData.glow.visible = false; chest.userData.lid.rotation.x = -1.2; }
+    if (taken) chest.visible = false;
     const area = this.isl.areaKm2 || 2;
     this.treasure = { x: best.x, z: best.z, m: chest, taken, place: best.name, value: Math.round(clamp(80 + Math.sqrt(area) * 60, 80, 900) * (1 + G.progress)) };
   }
@@ -708,12 +708,19 @@ export class Island {
     this.fw.update(dt);
     // 財宝
     const T = this.treasure, P = this.P;
-    T.m.userData.glow.scale.setScalar(1 + Math.sin(this.t * 4) * 0.1);
-    if (!T.taken && hypot(T.x - P.x, T.z - P.z) < 2.2 && !P.dead) {
+    if (!T.taken) animateChest(T.m, this.t);
+    else if (T.m.visible) {
+      // 奪った財宝は光りながら浮かび上がって消える
+      T.gone = (T.gone || 0) + dt;
+      T.m.position.y += dt * 3; T.m.rotation.y += dt * 6; T.m.scale.setScalar(Math.max(0.01, 1 - T.gone / 1.5));
+      if (T.gone > 1.5) T.m.visible = false;
+    }
+    if (!T.taken && hypot(T.x - P.x, T.z - P.z) < 3.6 && !P.dead) {
       T.taken = true;
       G.taken.add(this.isl.id);
       G.gold += T.value;
-      T.m.userData.lid.rotation.x = -1.2; T.m.userData.beam.visible = false;
+      T.m.userData.lid.rotation.x = -1.9; T.m.userData.beam.visible = false; T.m.userData.glow.visible = false;
+      for (let k = 0; k < 30; k++) this.sprite(k % 2 ? '#ffe070' : '#ffffff', T.x, this.hAt(T.x, T.z) + 2, T.z, 0.6, 1.2, rand(-6, 6), rand(4, 12), rand(-6, 6), 0.5, 8);
       Sfx.treasure(); Sfx.swell(0.8);
       banner(L(`財宝を奪った！ +${T.value}両`, `Treasure taken! +${T.value} ryō`), L(`${T.place}の宝。船に戻れ`, `From the ${T.place}. Back to the ship!`));
       msg(L('島の海賊どもが追ってくる！', 'The island pirates are coming after you!'), 'warn', 4);

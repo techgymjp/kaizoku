@@ -498,19 +498,57 @@ export function makeHouse(w, d, h, roof = '#4a4e5a', wall = '#e8e0d0') {
   const rg = new THREE.CylinderGeometry(0.01, Math.max(w, d) * 0.6, h * 0.5, 3, 1);
   return g;
 }
+// 財宝の箱（大きく、金銀財宝があふれてきらめく）
 export function makeChest() {
   const g = new THREE.Group();
-  box(1.2, 0.7, 0.8, '#7a3a12', 0, 0.35, 0, g);
-  const lid = box(1.24, 0.3, 0.84, '#8a4a1a', 0, 0.82, 0, g);
-  for (const x of [-0.45, 0, 0.45]) box(0.08, 1.02, 0.86, '#d8b040', x, 0.5, 0, g);
-  box(0.2, 0.2, 0.05, '#e8c860', 0, 0.62, 0.43, g);
-  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 8), new THREE.MeshBasicMaterial({ color: '#ffe080', transparent: true, opacity: 0.25, depthWrite: false }));
-  glow.position.y = 0.6; g.add(glow);
+  const s = 2.2;
+  const gold = new THREE.MeshPhongMaterial({ color: '#ffcc33', emissive: '#6a4400', specular: '#ffffff', shininess: 90 });
+  const wood = new THREE.MeshPhongMaterial({ color: '#8a2a10', shininess: 30 });
+  const B = (w, h, d, m, x, y, z, p = g) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w * s, h * s, d * s), m); o.position.set(x * s, y * s, z * s); p.add(o); return o; };
+  B(1.2, 0.7, 0.8, wood, 0, 0.35, 0);
+  for (const x of [-0.5, 0, 0.5]) B(0.09, 0.74, 0.84, gold, x, 0.36, 0);
+  B(1.24, 0.08, 0.84, gold, 0, 0.04, 0); B(1.24, 0.08, 0.84, gold, 0, 0.7, 0);
+  // ふた（後ろを軸に開く）
+  const lid = new THREE.Group(); lid.position.set(0, 0.72 * s, -0.4 * s); g.add(lid);
+  const lw = new THREE.Mesh(new THREE.CylinderGeometry(0.42 * s, 0.42 * s, 1.24 * s, 12, 1, false, 0, Math.PI), wood);
+  lw.rotation.z = Math.PI / 2; lw.position.set(0, 0, 0.4 * s); lid.add(lw);
+  for (const x of [-0.5, 0, 0.5]) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.43 * s, 0.035 * s, 4, 12, Math.PI), gold); r.rotation.y = Math.PI / 2; r.position.set(x * s, 0, 0.4 * s); lid.add(r); }
+  lid.rotation.x = -0.7; // 少し開いて中の宝が見える
+  B(0.22, 0.24, 0.05, gold, 0, 0.6, 0.43);
+  // あふれる金貨と宝玉
+  const coin = new THREE.CylinderGeometry(0.07 * s, 0.07 * s, 0.02 * s, 10);
+  for (let i = 0; i < 60; i++) {
+    const c = new THREE.Mesh(coin, gold);
+    const inBox = i < 36;
+    c.position.set((Math.random() - 0.5) * (inBox ? 1.05 : 2.6) * s, (inBox ? 0.72 + Math.random() * 0.12 : 0.02 + Math.random() * 0.05) * s, (inBox ? (Math.random() - 0.5) * 0.65 : 0.45 + Math.random() * 0.7) * s);
+    c.rotation.set(Math.random() * 0.8, Math.random() * 3, Math.random() * 0.8); g.add(c);
+  }
+  for (const [c, x, z] of [['#ff2a4a', -0.3, 0.1], ['#2a8aff', 0.25, -0.1], ['#2aff8a', 0.05, 0.2], ['#c040ff', -0.1, -0.2], ['#ff2a4a', 0.7, 0.8], ['#2a8aff', -0.8, 0.7]]) {
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.1 * s), new THREE.MeshPhongMaterial({ color: c, emissive: c, emissiveIntensity: 0.5, shininess: 120 }));
+    gem.position.set(x * s, (z > 0.5 ? 0.12 : 0.86) * s, z * s); g.add(gem);
+  }
+  // 光の輪ときらめき
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(1.6 * s, 14, 10), new THREE.MeshBasicMaterial({ color: '#ffe080', transparent: true, opacity: 0.22, depthWrite: false }));
+  glow.position.y = 0.6 * s; g.add(glow);
+  const spark = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.translate(32, 32); for (let i = 0; i < 4; i++) { x.rotate(Math.PI / 4); x.beginPath(); x.moveTo(0, -30); x.lineTo(4, 0); x.lineTo(0, 30); x.lineTo(-4, 0); x.fill(); } return new THREE.CanvasTexture(c); })();
+  const sparks = [];
+  for (let i = 0; i < 14; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: spark, color: i % 3 ? '#fff6c0' : '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    sp.userData = { a: Math.random() * 6.28, r: (0.6 + Math.random() * 1.2) * s, y: (0.4 + Math.random() * 1.6) * s, ph: Math.random() * 6.28 };
+    g.add(sp); sparks.push(sp);
+  }
   // 光の柱（遠くからでも見える）
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1.4, 80, 10, 1, true), new THREE.MeshBasicMaterial({ color: '#ffe48a', transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
-  beam.position.y = 40; g.add(beam);
-  g.userData = { lid, glow, beam };
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 3, 90, 12, 1, true), new THREE.MeshBasicMaterial({ color: '#ffe48a', transparent: true, opacity: 0.25, depthWrite: false, side: THREE.DoubleSide }));
+  beam.position.y = 45; g.add(beam);
+  g.userData = { lid, glow, beam, sparks };
   return g;
+}
+// きらめきを動かす
+export function animateChest(c, t) {
+  const u = c.userData;
+  u.glow.scale.setScalar(1 + Math.sin(t * 4) * 0.12);
+  for (const sp of u.sparks) { const d = sp.userData; const a = d.a + t * 0.8; sp.position.set(Math.cos(a) * d.r, d.y + Math.sin(t * 2 + d.ph) * 0.3, Math.sin(a) * d.r); const k = Math.max(0, Math.sin(t * 5 + d.ph)); sp.scale.setScalar(0.2 + k * 0.9); sp.material.opacity = k; }
+  c.rotation.y = Math.sin(t * 0.5) * 0.15;
 }
 export function makeOnigiri(s = 1) {
   const g = new THREE.Group();

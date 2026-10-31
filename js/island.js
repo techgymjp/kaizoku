@@ -1320,6 +1320,8 @@ export class Island {
     g.fillStyle = '#ffe14d'; g.strokeStyle = '#000'; g.lineWidth = 3; g.beginPath(); g.moveTo(20, 0); g.lineTo(-12, -12); g.lineTo(-5, 0); g.lineTo(-12, 12); g.closePath(); g.stroke(); g.fill();
     g.restore();
   }
+  // 広告を見て復活したとき
+  revive() { const P = this.P; P.dead = false; P.inv = 3; P.m.rotation.z = 0; for (const e of this.enemies) if (e.alive && hypot(e.x - P.x, e.z - P.z) < 12) { e.kvx = (e.x - P.x) * 3; e.kvz = (e.z - P.z) * 3; } }
   resize() { this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix(); }
   dispose() {
     this.floats.clear(); this.tags.clear();

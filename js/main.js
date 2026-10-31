@@ -177,14 +177,80 @@ function renderStory(keepName) {
 }
 for (const b of document.querySelectorAll('.lang-btn')) b.addEventListener('click', () => { setLang(b.dataset.lang); renderStory(); updateHelp(); });
 $('btnMute').addEventListener('click', () => { Sfx.init(); Sfx.toggle(); renderStory(); });
-$('btnStart').addEventListener('click', () => { Sfx.init(); start(); });
-$('btnRetry').addEventListener('click', () => { Sfx.init(); restart(); });
-$('btnTitle').addEventListener('click', () => { restart(true); });
+// 全画面広告（アプリだけ）：プレイを始める・タイトルに戻る・再開・もう一度のたびに出す
+const interstitial = () => (window.Ads && Ads.available ? Ads.showInterstitial(3000) : Promise.resolve());
+$('btnStart').addEventListener('click', async () => { Sfx.init(); await interstitial(); start(); });
+$('btnRetry').addEventListener('click', async () => { Sfx.init(); await interstitial(); restart(); });
+$('btnTitle').addEventListener('click', async () => { await interstitial(); restart(true); });
 $('btnPause').addEventListener('click', () => togglePause());
 $('btnView').addEventListener('click', () => { I.toggleView = true; });
-$('btnResume').addEventListener('click', () => togglePause());
-$('btnQuit').addEventListener('click', () => { saveGame(); $('pause').classList.add('hidden'); Sfx.resume(); restart(true); });
-$('btnContinue').addEventListener('click', () => { Sfx.init(); continueGame(); });
+$('btnResume').addEventListener('click', async () => { await interstitial(); togglePause(); });
+$('btnQuit').addEventListener('click', async () => { saveGame(); await interstitial(); $('pause').classList.add('hidden'); Sfx.resume(); restart(true); });
+$('btnContinue').addEventListener('click', async () => { Sfx.init(); await interstitial(); continueGame(); });
+
+// ---------------- 遊び方（ページの中に重ねて出す） ----------------
+function openHowto() { $('howtoFrame').src = 'howto.html'; $('howto').classList.remove('hidden'); }
+function closeHowto() { $('howto').classList.add('hidden'); }
+$('btnHowto').addEventListener('click', openHowto);
+$('btnHowto2').addEventListener('click', openHowto);
+$('howtoClose').addEventListener('click', closeHowto);
+addEventListener('message', (e) => { if (e.data === 'closeHowto') closeHowto(); });
+
+// ---------------- アプリ（Android）だけの動き ----------------
+const cap = window.Capacitor;
+const native = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+window.GameAudio = Sfx; // 広告を出している間は音を止める（js/ads.js から呼ぶ）
+if (native) document.body.classList.add('native');
+$('buildInfo').textContent = window.APP_VERSION && window.APP_VERSION !== 'dev' ? window.APP_VERSION : '';
+if (window.Ads) {
+  Ads.initDone.then(() => { if (Ads.privacyOptionsRequired) $('adPrivacy').hidden = false; });
+  $('adPrivacyLink').addEventListener('click', (e) => { e.preventDefault(); Ads.showPrivacyOptions(); });
+}
+// 戻るボタン：遊び方を閉じる／プレイ中はポーズ／ポーズ中は再開／タイトル・結果ではアプリを終了
+if (native && cap.Plugins && cap.Plugins.App) {
+  cap.Plugins.App.addListener('backButton', () => {
+    if (!$('howto').classList.contains('hidden')) closeHowto();
+    else if (!$('revive').classList.contains('hidden')) $('reviveGiveUp').click();
+    else if (G && G.state === 'play') togglePause();
+    else if (G && G.state === 'pause') $('btnResume').click();
+    else if (G && G.state === 'loading') { /* 読み込み中は何もしない */ }
+    else cap.Plugins.App.exitApp();
+  });
+}
+// バナー広告：タイトル・遊び方・ポーズ・結果の画面だけ
+function syncBanner() {
+  if (!window.Ads) return;
+  const on = !$('howto').classList.contains('hidden') || (G && (G.state === 'title' || G.state === 'pause' || G.state === 'result'));
+  Ads.setBanner(!!on);
+}
+
+// ---------------- 復活（リワード広告。討死したとき 1 ゲーム 3 回まで） ----------------
+const REVIVE_MAX = 3;
+let reviveTimer = null;
+function canRevive() { return native && window.Ads && Ads.canReward && (G.revives || 0) < REVIVE_MAX; }
+function showRevive() {
+  G.state = 'revive';
+  $('revive').classList.remove('hidden');
+  $('reviveNote').textContent = L(`あと ${REVIVE_MAX - (G.revives || 0)} 回まで`, `${REVIVE_MAX - (G.revives || 0)} left`);
+  let left = 8; $('reviveTime').textContent = left;
+  clearInterval(reviveTimer);
+  reviveTimer = setInterval(() => { left--; $('reviveTime').textContent = Math.max(0, left); if (left <= 0) giveUp(); }, 1000);
+}
+function giveUp() { clearInterval(reviveTimer); $('revive').classList.add('hidden'); if (G.state === 'revive') showResult(false); }
+$('reviveGiveUp').addEventListener('click', giveUp);
+$('reviveWatch').addEventListener('click', async () => {
+  clearInterval(reviveTimer);
+  $('reviveWatch').disabled = true;
+  const r = await Ads.showRewarded();
+  $('reviveWatch').disabled = false;
+  if (r !== 'rewarded') { giveUp(); return; }
+  $('revive').classList.add('hidden');
+  G.revives = (G.revives || 0) + 1;
+  G.hp = G.maxHp; G.st = G.maxSt; G.state = 'play'; G.lastHurt = G.t;
+  if (mode === 'island' && island) island.revive(); else if (sea) sea.P.inv = 3;
+  banner(L('再び立ち上がった！', 'Back on your feet!'), L('体力が満タンになった', 'HP fully restored'));
+  Sfx.bgm(G.final ? 'final' : mode === 'island' ? 'island' : 'sea');
+});
 
 // ---------------- セーブ（タイトルに戻るとき自動で） ----------------
 const SAVE_KEY = 'kaizoku.save';
@@ -341,15 +407,21 @@ function showResult(clear) {
   $('rProg').textContent = Math.round(G.progress * 100) + '%';
   const s = Math.floor(G.t);
   $('rTime').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  $('rReviveRow').hidden = !G.revives; $('rRevive').textContent = L(`${G.revives || 0} 回`, `${G.revives || 0}×`);
   const list = $('rList'); list.innerHTML = '';
   for (const id of G.taken) { const isl = islands.find((i) => i.id === id); if (!isl) continue; const c = document.createElement('span'); c.className = 'chip on'; c.textContent = islandName(isl); list.appendChild(c); }
   Sfx.crowd(0);
 }
 function shareText() {
+  const rv = G.revives ? L(`（復活 ${G.revives} 回）`, ` (revived ${G.revives}×)`) : '';
+  return shareText0() + rv;
+}
+function shareText0() {
   const clear = $('rHead').classList.contains('clear');
   return L(`【瀬戸内の海賊王】船長${playerName()}は「${rank(clear)}」——財宝 ${G.gold.toLocaleString()} 両、${G.taken.size} 島を荒らし、${G.sunk} 艘を沈めた。`, `[Pirate King of the Seto Inland Sea] Captain ${playerName()}: ${rank(clear)} — ${G.gold.toLocaleString()} ryō of treasure, ${G.taken.size} islands raided, ${G.sunk} ships sunk.`);
 }
 $('shareX').addEventListener('click', () => open('https://x.com/intent/post?text=' + encodeURIComponent(shareText()) + '&url=' + encodeURIComponent(location.href.split('#')[0]), '_blank', 'noopener'));
+$('shareNative').addEventListener('click', () => { if (cap && cap.Plugins && cap.Plugins.Share) cap.Plugins.Share.share({ title: L('瀬戸内の海賊王', 'Pirate King of the Seto Inland Sea'), text: shareText(), url: 'https://techgymjp.github.io/kaizoku/' }).catch(() => {}); });
 $('shareLine').addEventListener('click', () => open('https://social-plugins.line.me/lineit/share?url=' + encodeURIComponent(location.href.split('#')[0]) + '&text=' + encodeURIComponent(shareText()), '_blank', 'noopener'));
 
 // ---------------- HUD ----------------
@@ -407,6 +479,7 @@ export function zoneName(z) { return getLang() === 'en' ? ZONE_EN[z.name] || z.n
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
+  syncBanner();
   let dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!G) return;
   if (mode === 'title') {
@@ -427,7 +500,7 @@ function loop(now) {
   if (G.state === 'play' || G.state === 'dying' || G.state === 'clearing') {
     if (G.state !== 'play') {
       G.endT += dt; dt *= 0.35;
-      if (G.endT > 2.6) showResult(G.state === 'clearing');
+      if (G.endT > 2.6) { if (G.state === 'dying' && canRevive()) showRevive(); else showResult(G.state === 'clearing'); }
     }
     G.t += dt;
     if (mode === 'sea') sea.update(dt, I); else if (island) island.update(dt, I);

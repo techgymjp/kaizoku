@@ -1,0 +1,8 @@
+{
+  "appId": "jp.techgym.kaizoku",
+  "appName": "瀬戸内の海賊王",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#0e1a22"
+  }
+}

@@ -341,3 +341,22 @@ body.touch #minimap { width: min(44vw, 300px); height: min(31.4vw, 214px); left:
 #btnContinue + #btnStart { margin-top: 10px; font-size: 20px; padding: 9px 36px; }
 .howto { display: inline-block; margin: 14px 8px 0 0; text-decoration: none; }
 #pause .panel .btn { display: block; margin: 10px auto 0; text-decoration: none; width: max-content; }
+/* 遊び方（重ねて表示） */
+#howto { background: rgba(5,10,15,.92); padding: 10px; z-index: 30; }
+.howto-box { width: min(820px, 100%); height: 100%; display: flex; flex-direction: column; gap: 8px; }
+#howtoFrame { flex: 1; width: 100%; border: 1px solid rgba(227,188,92,.4); border-radius: 6px; background: #0e1a22; }
+#howtoClose { margin: 0 auto 60px; font-size: 18px; padding: 8px 40px; }
+/* 復活 */
+#revive { background: rgba(10,5,2,.6); z-index: 25; }
+.cont h2 { color: #ff6a5a; } .cont p { margin: 0 0 6px; }
+.cont-time { font-size: 48px; font-weight: 800; color: var(--gold); }
+.cont-note { min-height: 1.4em; margin: 6px 0; color: #ffb0a0; font-size: 13px; }
+.cont .btn { display: block; margin: 8px auto 0; }
+/* アプリでは X / LINE の代わりに Android の共有メニュー */
+.share-native { display: none; background: #5a4632; }
+body.native .share-x, body.native .share-line { display: none; }
+body.native .share-native { display: inline-block; }
+#buildInfo:not(:empty)::after { content: "｜"; }
+.legal a { color: rgba(255,255,255,.8); }
+/* アプリではバナー広告の分だけ下をあける */
+body.native #title .title-inner, body.native #result .panel, body.native #pause .panel { margin-bottom: 64px; }

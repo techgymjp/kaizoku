@@ -67,3 +67,32 @@ BGM は都節音階・陽音階で新しく作りました（海：尺八と琴�
 - 地形・空中写真・建物・地図記号：[国土地理院 地理院タイル](https://maps.gsi.go.jp/development/ichiran.html)（標高タイル、シームレス空中写真、ベクトルタイル）を加工して作成
 - 島の座標：国土地理院 地名検索
 - 3D 描画：[three.js](https://threejs.org/)（MIT License）
+
+## Android アプリ
+
+Capacitor 8 で Android アプリにしています（パッケージ名 `jp.techgym.kaizoku`、縦画面）。構成は techgymjp/jet-fighter の `docs/ANDROID_PORTING.md` と同じです。ホーム画面の名前は、端末が日本語なら「海賊王」、それ以外は「Pirate King」です。
+
+- 動作確認用 APK（デバッグ署名・テスト広告）：リリース画面 https://github.com/techgymjp/kaizoku/releases/tag/android-latest
+  - APK 直接：https://github.com/techgymjp/kaizoku/releases/latest/download/kaizoku.apk
+  - QR コード：`docs/apk-qr.png`
+- ビルド：`npm ci` → `npm run build`（`www/` にコピー）→ `npx cap sync android` → `cd android && ./gradlew assembleDebug`。GitHub Actions（`.github/workflows/android.yml`）が push のたびに作り、既定ブランチのビルドは Release `android-latest` に載せます
+- GitHub Secrets（`ANDROID_KEYSTORE_BASE64` / `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`）を登録すると、Google Play 用の署名付き AAB（本番広告）も作ります
+- アイコンと起動画面は `assets/` の元画像から `npx @capacitor/assets generate --android` で生成しています
+- ゲームのファイル（地形・島・音）はアプリに同梱しています。上陸した島の細かい地形・空中写真・建物は、地理院タイルを通信で読み込みます（通信できないときは粗い地形で遊べます）
+
+アプリ版だけの動き：
+
+- 戻るボタン：プレイ中は一時停止、一時停止中は再開、遊び方は閉じる、タイトル・結果画面ではアプリを終了
+- 別のアプリに切り替えると一時停止し、音も止める（自動でセーブ）
+- 結果画面の共有は Android の共有メニュー
+- 広告（AdMob）
+  - バナー：タイトル・遊び方・一時停止・結果の画面だけ（画面の下中央）
+  - 全画面広告：出航・途中からはじめる・一時停止から再開・タイトルへ戻る・もう一度のたびに毎回
+  - リワード広告：討死したとき、広告を見ると体力満タンで復活（1 ゲーム 3 回まで。8 秒で自動的に結果画面へ）。使った回数は結果画面と共有文に出す
+- タイトル画面にビルド番号・プライバシーポリシー・（EU など必要な地域では）広告の設定
+
+**AdMob のアプリ ID と広告ユニット ID はまだ入っていません。** 今は Google 公式のテスト用アプリ ID（`android/app/src/main/res/values/strings.xml` の `admob_app_id`）で、本番の広告ユニット（`js/ads.js` の `production`）は空です。空の種類は Google Play 用のビルドでは出しません。届いたら差し替えてください。
+
+## ライセンス
+
+著作権はテックジム株式会社に帰属します（All rights reserved）。許可なく複製・改変・再配布すること、Web サイトやアプリ（Google Play、App Store など）として公開・販売すること、名前・ロゴ・アイコン・画像を使うことを禁止します。テックジムの受講生が学習目的で複製・改変することは許可しますが、アプリストアでの公開、広告の掲載、販売などの商用利用は禁止し、著作権表示を残してください。詳しくは [LICENSE](LICENSE) を見てください。three.js（MIT）などの同梱ライブラリはそれぞれのライセンスに従います。

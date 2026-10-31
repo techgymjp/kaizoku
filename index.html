@@ -71,12 +71,31 @@
     <button id="btnContinue" class="btn primary hidden" data-en="Continue">途中からはじめる</button>
     <button id="btnStart" class="btn primary" data-en="Set sail">出　航</button>
     <div class="lang-sel"><button class="lang-btn" data-lang="ja">日本語</button><button class="lang-btn" data-lang="en">English</button></div>
-    <a id="btnHowto" class="btn ghost small howto" href="howto.html" target="_blank" rel="noopener" data-en="How to play">遊び方</a>
+    <button id="btnHowto" class="btn ghost small howto" data-en="How to play">遊び方</button>
     <button id="btnMute" class="btn ghost small">音：入</button>
     <div class="legal">
       <span data-en="Terrain, aerial photos and buildings: processed from GSI Tiles (Geospatial Information Authority of Japan)">地形・空中写真・建物：国土地理院「地理院タイル」を加工して作成</span><br>
-      <span data-en="Battle system, sound and character: based on “Kobayakawa: Lone Samurai” (TECH GYM)">戦い方・効果音・主人公：「孤軍奮闘小早川」（テックジム）より</span>
+      <span data-en="Battle system, sound and character: based on “Kobayakawa: Lone Samurai” (TECH GYM)">戦い方・効果音・主人公：「孤軍奮闘小早川」（テックジム）より</span><br>
+      <span id="buildInfo"></span> <a id="privacyLink" href="https://techgym.jp/privacy-policy/" target="_blank" rel="noopener" data-en="Privacy policy">プライバシーポリシー</a>
+      <span id="adPrivacy" hidden>｜<a href="#" id="adPrivacyLink" data-en="Ad settings">広告の設定</a></span>
     </div>
+  </div>
+</div>
+
+<!-- 遊び方 -->
+<div id="howto" class="screen hidden">
+  <div class="howto-box"><iframe id="howtoFrame" title="遊び方"></iframe><button id="howtoClose" class="btn primary" data-en="Close">閉じる</button></div>
+</div>
+
+<!-- 復活（アプリのみ：リワード広告） -->
+<div id="revive" class="screen hidden">
+  <div class="panel cont">
+    <h2 data-en="Not yet…">まだ死ねぬ……</h2>
+    <p data-en="Watch an ad to get back up with full HP.">広告を見れば、体力満タンで戦いに戻れる。</p>
+    <div id="reviveTime" class="cont-time">8</div>
+    <button id="reviveWatch" class="btn primary" data-en="Watch an ad and revive">広告を見て復活する</button>
+    <div id="reviveNote" class="cont-note"></div>
+    <button id="reviveGiveUp" class="btn ghost" data-en="Accept defeat">ここで果てる</button>
   </div>
 </div>
 
@@ -86,7 +105,7 @@
     <h2 data-en="Paused">船中休息</h2>
     <button id="btnResume" class="btn primary" data-en="Resume">再び出る</button>
     <button id="btnQuit" class="btn ghost" data-en="Back to title">タイトルへ</button>
-    <a class="btn ghost" href="howto.html" target="_blank" rel="noopener" data-en="How to play">遊び方</a>
+    <button id="btnHowto2" class="btn ghost" data-en="How to play">遊び方</button>
   </div>
 </div>
 
@@ -104,11 +123,13 @@
       <tr><th data-en="Foes slain">斬った敵</th><td id="rKill"></td></tr>
       <tr><th data-en="Voyage">航海</th><td id="rProg"></td></tr>
       <tr><th data-en="Time">時間</th><td id="rTime"></td></tr>
+      <tr id="rReviveRow" hidden><th data-en="Revived">復活</th><td id="rRevive"></td></tr>
     </table>
     <div id="rList" class="r-list"></div>
     <div class="share">
       <button id="shareX" class="btn share-x" data-en="Share on 𝕏">𝕏 でシェア</button>
       <button id="shareLine" class="btn share-line" data-en="LINE">LINEで送る</button>
+      <button id="shareNative" class="btn share-native" data-en="Share">共有する</button>
     </div>
     <div class="r-btns">
       <button id="btnRetry" class="btn primary" data-en="Sail again">再び出航</button>
@@ -117,6 +138,9 @@
   </div>
 </div>
 
+<script src="js/ads-config.js"></script>
+<script src="js/build-info.js"></script>
+<script src="js/ads.js"></script>
 <script>
   // 公開した版の番号（version.txt）を毎回確かめてから読み込む。古いファイルが残らないように
   fetch('version.txt', { cache: 'no-store' }).then((r) => (r.ok ? r.text() : '')).catch(() => '').then((v) => {

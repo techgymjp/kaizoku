@@ -129,6 +129,10 @@
   const set = (l) => { document.body.classList.toggle('en', l === 'en'); document.documentElement.lang = l; for (const b of document.querySelectorAll('.lang button')) b.classList.toggle('on', b.dataset.l === l); try { localStorage.setItem('kaizoku.lang', l); } catch (e) {} };
   let l = 'ja'; try { l = localStorage.getItem('kaizoku.lang') || ((navigator.language || 'ja').startsWith('ja') ? 'ja' : 'en'); } catch (e) {}
   set(l);
+  // ゲームの中に重ねて出しているときは、「ゲームに戻る」で閉じる
+  if (window.parent !== window) for (const a of document.querySelectorAll('a.btn')) a.addEventListener('click', (e) => { e.preventDefault(); window.parent.postMessage('closeHowto', '*'); });
+  // 広告のぶん下をあける
+  if (window.parent !== window) document.body.style.paddingBottom = '70px';
   for (const b of document.querySelectorAll('.lang button')) b.addEventListener('click', () => set(b.dataset.l));
 </script>
 </body>

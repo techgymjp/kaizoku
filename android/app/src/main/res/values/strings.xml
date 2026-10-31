@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <!-- ホーム画面に出る名前（短く） -->
+    <string name="app_name">海賊王</string>
+    <string name="title_activity_main">瀬戸内の海賊王</string>
+    <string name="package_name">jp.techgym.kaizoku</string>
+    <string name="custom_url_scheme">jp.techgym.kaizoku</string>
+    <!-- AdMob のアプリ ID。届くまでは Google 公式のテスト用 ID（本番のアプリ ID が届いたら差し替える） -->
+    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
+</resources>

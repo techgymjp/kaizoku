@@ -410,8 +410,9 @@ function loop(now) {
   let dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (!G) return;
   if (mode === 'title') {
-    // タイトルの背景：大阪湾をゆっくり巡る
+    // タイトルの背景：姫路港をゆっくり巡る
     const P = sea.P; const t = now / 1000;
+    sea.gun.visible = false; // 船首の鉄砲（カメラに付けたモデル）はタイトルでは出さない
     sea.camera.position.set(P.x + Math.cos(t * 0.05) * 120, 40, P.z + Math.sin(t * 0.05) * 120);
     sea.camera.lookAt(P.x, 0, P.z);
     sea.updateSky(0, false);

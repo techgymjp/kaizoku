@@ -19,7 +19,7 @@ export const Sfx = (() => {
     bgmBus = ac.createGain(); bgmBus.gain.value = 0.75; bgmBus.connect(master);
     makeReverb();
     if (bgm.mode) { const m = bgm.mode; bgm.mode = null; setBgm(m); }
-    setTimeout(renderAll, 300);
+    setTimeout(() => renderAllHook && renderAllHook(), 300);
   }
 
   // 兵士たちの「ワー」という鬨の声（ノイズ＋声のフォルマント）
@@ -348,7 +348,7 @@ export const Sfx = (() => {
     if (!bgm.timer) bgm.timer = setInterval(bgmTick, 200);
     if (mode === 'final') setTimeout(() => api.horn(0.4, 0, 0.8, [0.8, 0.8, 2.2]), 400);
   }
-  let lastHit = 0;
+  let lastHit = 0, renderAllHook = null;
   const api = {
     init,
     crowd: setCrowd,
@@ -440,5 +440,51 @@ export const Sfx = (() => {
     boom() { noise(1.1, 400, 0.7, 0.7, 'lowpass'); tone(90, 0.6, 0.4, 'sine', 0.4); for (let i = 0; i < 5; i++) noise(0.03, 5000, 1, 0.04 + Math.random() * 0.08, 'highpass', 0.25 + Math.random()); },
     oar() { noise(0.25, 500, 1.5, 0.1, 'bandpass'); },
   };
+  // ---- 効果音も最初に音のデータに書き出しておき、鳴らすときはそれを再生するだけにする ----
+  // [名前, 長さ(秒), 音量の引数の既定値(あれば), 書き出す種類の数]
+  const SFX = [['slash', 0.25], ['thrust', 0.3], ['hit', 0.2], ['clang', 0.35], ['hurt', 0.3], ['gun', 0.5, 0.5, 3], ['kill', 0.5], ['gallop', 0.12, null, 2],
+    ['drum', 0.5, 0.5], ['cannon', 1.0, 0.6], ['splash', 1.1, 0.4, 2], ['crack', 0.45, 0.45, 2], ['sink', 2.4], ['coin', 0.4], ['bomb', 1.1], ['whoosh', 0.4],
+    ['oar', 0.3], ['launch', 0.9], ['boom', 1.8, null, 3], ['fanfare', 1.5], ['dirge', 2.2], ['bell', 5.2], ['treasure', 1.1]];
+  const sfxBuf = {};
+  async function renderSfx() {
+    const sr = 32000;
+    for (const [name, dur, , variants = 1] of SFX) {
+      sfxBuf[name] = [];
+      for (let v = 0; v < variants; v++) {
+        const off = new OfflineAudioContext(1, Math.ceil((dur + 0.05) * sr), sr);
+        const keep = { ac, master, voices, lastHit };
+        ac = off; master = off.destination; voices = 0; lastHit = -1;
+        const realTimeout = window.setTimeout;
+        try { if (name === 'treasure') window.setTimeout = () => 0; live[name](); } finally { window.setTimeout = realTimeout; ({ ac, master, voices, lastHit } = keep); }
+        try { sfxBuf[name].push(await off.startRendering()); } catch (e) { /* 書き出せない端末では、その場で鳴らす */ }
+      }
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  }
+  let sfxVoices = 0, lastHitPlay = 0;
+  function playSfx(name, gain) {
+    const list = sfxBuf[name];
+    if (!list || !list.length || !ac || sfxVoices > 32) return false;
+    if (name === 'hit') { if (ac.currentTime - lastHitPlay < 0.03) return true; lastHitPlay = ac.currentTime; }
+    const src = ac.createBufferSource(); src.buffer = list[(Math.random() * list.length) | 0];
+    src.playbackRate.value = 0.96 + Math.random() * 0.08; // 少しずつ高さを変えて単調にならないように
+    const g = ac.createGain(); g.gain.value = gain;
+    src.connect(g); g.connect(master);
+    sfxVoices++; src.onended = () => { sfxVoices--; };
+    src.start();
+    return true;
+  }
+  const live = {};
+  for (const [name, , def] of SFX) {
+    live[name] = api[name];
+    api[name] = (...args) => {
+      const gain = def && typeof args[0] === 'number' ? args[0] / def : 1;
+      if (playSfx(name, gain)) { if (name === 'treasure') setTimeout(() => api.fanfare(), 500); return; }
+      live[name](...args);
+    };
+  }
+  api.sfxCount = () => Object.values(sfxBuf).filter((l) => l.length).length + '/' + SFX.length;
+  const startBgmRender = renderAll;
+  renderAllHook = async () => { await renderSfx(); await startBgmRender(); };
   return api;
 })();

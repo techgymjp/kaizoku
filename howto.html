@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>遊び方 — 瀬戸内の海賊王</title>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800&family=Yuji+Syuku&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: #0e1a22; --paper: #f3ead6; --gold: #e3bc5c; --red: #c0161b; --sea: #1d4a66; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ink); color: var(--paper); font-family: "Shippori Mincho", serif; line-height: 1.8; }
+  header { text-align: center; padding: 28px 16px 12px; background: radial-gradient(ellipse at top, #1d4a66 0%, var(--ink) 70%); }
+  h1 { font-family: "Yuji Syuku", serif; font-weight: 400; font-size: clamp(34px, 8vw, 56px); margin: 6px 0; text-shadow: 3px 3px 0 var(--red), 0 4px 14px #000; }
+  .lead { color: var(--gold); letter-spacing: .2em; }
+  main { max-width: 760px; margin: 0 auto; padding: 8px 16px 48px; }
+  h2 { font-size: 22px; border-left: 5px solid var(--red); padding-left: 10px; margin: 32px 0 10px; color: #fff; }
+  .card { background: rgba(255,255,255,.05); border: 1px solid rgba(227,188,92,.35); border-radius: 8px; padding: 12px 16px; margin: 10px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,.12); text-align: left; vertical-align: top; }
+  th { color: var(--gold); white-space: nowrap; width: 30%; }
+  kbd { display: inline-block; min-width: 22px; padding: 0 5px; border: 1px solid rgba(255,255,255,.45); border-bottom-width: 2px; border-radius: 3px; font-family: monospace; font-size: 13px; background: rgba(0,0,0,.35); }
+  .btn { display: inline-block; margin: 8px 6px; padding: 6px 18px; border-radius: 20px; background: rgba(192,22,27,.85); color: #fff; text-decoration: none; border: 1px solid #f0a090; }
+  .lang { text-align: center; }
+  .lang button { font-family: inherit; font-size: 14px; padding: 4px 14px; border-radius: 16px; border: 1px solid rgba(255,255,255,.4); background: rgba(0,0,0,.4); color: #fff; cursor: pointer; }
+  .lang button.on { background: var(--red); }
+  ul { padding-left: 1.3em; } li { margin: 4px 0; }
+  .en { display: none; } body.en .en { display: block; } body.en .ja { display: none; }
+  body.en span.en, body.en kbd.en { display: inline; }
+  .note { color: #c8b890; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="lead ja">姫路港より巌流島へ</div><div class="lead en">From Himeji to Ganryūjima</div>
+  <h1>瀬戸内の海賊王</h1>
+  <div class="lang"><button data-l="ja">日本語</button> <button data-l="en">English</button></div>
+  <a class="btn ja" href="./">ゲームに戻る</a><a class="btn en" href="./">Back to the game</a>
+</header>
+<main>
+<div class="ja">
+  <h2>どんなゲーム？</h2>
+  <div class="card">
+    <p>船長（源義経）となって海賊船に乗り、<b>姫路港から西へ</b>瀬戸内海を進みます。島々に上陸して<b>財宝</b>を奪い、行く手をはばむ武士たちの船を沈め、最後は<b>巌流島の決戦</b>で平家の怨霊船団を討ち果たせば「瀬戸内の海賊王」です。</p>
+    <p>瀬戸内海の地形・島々・港・家並み・神社は、国土地理院の地図データから 3D で作っています。</p>
+  </div>
+
+  <h2>流れ</h2>
+  <ol>
+    <li><b>海を進む</b>：右上の<b>島ナビ</b>が、西にある財宝の島までの方向と距離を示します。</li>
+    <li><b>港に入る</b>：島の港には<b>金色の光の柱</b>が立っています。柱の中に船を入れると自動で上陸します。</li>
+    <li><b>島で戦う</b>：島には武将が率いる軍勢が布陣していて、次々に攻めてきます。島ナビの「★財宝」を目指して奪いましょう。</li>
+    <li><b>船に戻る</b>：財宝を奪うと島ナビが「⚓船」に変わります。船まで戻れば自動で乗り込み、体力が全回復します。</li>
+    <li><b>決戦</b>：西に財宝の島が無くなると、島ナビに<b>巌流島</b>が出て決戦が始まります。沈めずに残した船もすべて集まってきます。全部沈めて巌流島に着けばクリア！</li>
+  </ol>
+
+  <h2>海の操作（海賊船）</h2>
+  <table>
+    <tr><th>帆を上げる・下げる</th><td>スマホ：画面の左側をなぞる（倒した向きに舵）／PC：<kbd>W</kbd><kbd>S</kbd></td></tr>
+    <tr><th>舵（向きを変える）</th><td>スマホ：左側をなぞる／PC：<kbd>A</kbd><kbd>D</kbd></td></tr>
+    <tr><th>鉄砲（5 連射）</th><td>「鉄砲」ボタン／<kbd>J</kbd>・左クリック。船首の鉄砲隊が<b>船の向いている方向</b>へ撃ちます。近いほど当たります。</td></tr>
+    <tr><th>大砲</th><td>「大砲」ボタン／<kbd>K</kbd>・右クリック。正面の敵の距離に合わせて撃ち、まわりの兵をまとめて倒します（駆を使う）。</td></tr>
+    <tr><th>全速</th><td>「全速」ボタン長押し／<kbd>Space</kbd>。長く押すほど速くなります（駆を使う）。</td></tr>
+  </table>
+
+  <h2>島の操作（小早川の戦い方）</h2>
+  <table>
+    <tr><th>前へ進む・向きを変える</th><td>スマホ：左側をなぞる（上で前進、左右で向き）／PC：<kbd>W</kbd><kbd>S</kbd>で前後、<kbd>A</kbd><kbd>D</kbd>で向き</td></tr>
+    <tr><th>刀</th><td>「刀」ボタン／<kbd>J</kbd>。3 回続けると回転斬り。鉄砲の弾を弾き返せます。</td></tr>
+    <tr><th>槍</th><td>「槍」ボタン／<kbd>K</kbd>。手前から 2 人まで貫きます。走りながら突くと突撃（駆を使う）。</td></tr>
+    <tr><th>全速</th><td>「全速」ボタン長押し／<kbd>Space</kbd>。押している間は前へ走り、敵を蹴散らします。</td></tr>
+    <tr><th>泳ぐ</th><td>海にも入れます（遅くなります）。海の向こうの陸にも渡れます。</td></tr>
+  </table>
+
+  <h2>知っておくと便利</h2>
+  <ul>
+    <li><b>体力</b>：撃たれたり斬られたりすると減ります。0 になると終わり。しばらく攻撃を受けなければ少しずつ回復し、上陸したとき・船に戻ったときは全回復します。</li>
+    <li><b>おむすび</b>：武将を討ち取ると落とします。拾うと体力が回復します。</li>
+    <li><b>敵の船</b>：船員 8 人を全員倒すと自爆します。船員が残った船は追いかけてきて、最後は巌流島に集結します。</li>
+    <li><b>島の守りの船</b>：島ごとに 3 隻が縄張りを守っています。近づくと襲ってきます。</li>
+    <li><b>武将</b>：平安（播磨灘）から幕末（周防灘）まで、西へ進むほど新しい時代の武士が現れます。一度討ち取った武将は二度と出てきません。</li>
+    <li><b>風と潮</b>：風は西へ吹いています。潮は満ち引きで向きが変わり、海峡では速く流れて船が流されます。白い点線はフェリーの航路で、たどれば港に着きます。</li>
+    <li><b>ミニマップ</b>（左下）：黄色い矢印が自分、赤い丸が敵、⚓が港です。</li>
+    <li><b>セーブ</b>：一時停止の「タイトルへ」で自動的にセーブされ、タイトル画面の「途中からはじめる」で続きから遊べます。</li>
+  </ul>
+  <p class="note">地形・空中写真・建物：国土地理院「地理院タイル」を加工して作成／戦い方・効果音・主人公：「孤軍奮闘小早川」（テックジム）より</p>
+</div>
+
+<div class="en">
+  <h2>What is this game?</h2>
+  <div class="card">
+    <p>As a pirate captain (Minamoto no Yoshitsune), sail <b>west from Himeji</b> across the Seto Inland Sea. Land on islands to plunder their <b>treasure</b>, sink the warrior ships that bar your way, and defeat the Heike ghost fleet in the <b>final battle at Ganryūjima</b> to become the Pirate King.</p>
+    <p>The terrain, islands, ports, houses and shrines are built in 3D from GSI map data.</p>
+  </div>
+  <h2>How it flows</h2>
+  <ol>
+    <li><b>Sail</b>: the <b>island navigator</b> (top right) shows the direction and distance to the next treasure island to the west.</li>
+    <li><b>Enter a port</b>: each port has a <b>golden pillar of light</b>. Sail into it to land automatically.</li>
+    <li><b>Fight on the island</b>: armies led by warlords attack one after another. Head for the “★ Treasure”.</li>
+    <li><b>Back to the ship</b>: after taking the treasure the navigator shows “⚓ Ship”. Reach it to board — your HP is fully restored.</li>
+    <li><b>Final battle</b>: when no treasure islands are left to the west, Ganryūjima appears and the final battle begins. Every ship you left afloat gathers there. Sink them all and reach Ganryūjima to win!</li>
+  </ol>
+  <h2>At sea</h2>
+  <table>
+    <tr><th>Sail / steer</th><td>Phone: drag on the left side / PC: <kbd>W</kbd><kbd>S</kbd> sails, <kbd>A</kbd><kbd>D</kbd> steer</td></tr>
+    <tr><th>Guns (5 shots)</th><td>“Guns” / <kbd>J</kbd> / left click — fired where the ship points. Closer means more hits.</td></tr>
+    <tr><th>Cannon</th><td>“Cannon” / <kbd>K</kbd> / right click — takes down several crew at once (uses dash).</td></tr>
+    <tr><th>Full speed</th><td>Hold “Full” / <kbd>Space</kbd> — faster the longer you hold (uses dash).</td></tr>
+  </table>
+  <h2>On islands (Kobayakawa style)</h2>
+  <table>
+    <tr><th>Move</th><td>Phone: drag on the left (up = forward, left/right = turn) / PC: <kbd>W</kbd><kbd>S</kbd>, <kbd>A</kbd><kbd>D</kbd></td></tr>
+    <tr><th>Sword</th><td>“Sword” / <kbd>J</kbd> — 3rd hit spins; deflects bullets.</td></tr>
+    <tr><th>Spear</th><td>“Spear” / <kbd>K</kbd> — pierces two; charge while running (uses dash).</td></tr>
+    <tr><th>Full speed</th><td>Hold “Full” / <kbd>Space</kbd> — run forward and knock enemies down.</td></tr>
+    <tr><th>Swim</th><td>You can swim (slowly) and cross to other land.</td></tr>
+  </table>
+  <h2>Tips</h2>
+  <ul>
+    <li>HP regenerates slowly and is fully restored when you land or board. Rice balls dropped by warlords heal you.</li>
+    <li>Down all 8 crew of a ship and it blows itself up. Ships with survivors chase you and gather at Ganryūjima.</li>
+    <li>Warriors go from the Heian era (east) to the Bakumatsu era (west). A warlord you defeat never returns.</li>
+    <li>The wind blows west; tides change and run fast in the straits. Dashed white lines are ferry routes to ports.</li>
+    <li>Minimap: yellow arrow = you, red dots = enemies, ⚓ = ports. “Back to title” in the pause menu saves your game; use “Continue” on the title screen.</li>
+  </ul>
+</div>
+</main>
+<script>
+  const set = (l) => { document.body.classList.toggle('en', l === 'en'); document.documentElement.lang = l; for (const b of document.querySelectorAll('.lang button')) b.classList.toggle('on', b.dataset.l === l); try { localStorage.setItem('kaizoku.lang', l); } catch (e) {} };
+  let l = 'ja'; try { l = localStorage.getItem('kaizoku.lang') || ((navigator.language || 'ja').startsWith('ja') ? 'ja' : 'en'); } catch (e) {}
+  set(l);
+  for (const b of document.querySelectorAll('.lang button')) b.addEventListener('click', () => set(b.dataset.l));
+</script>
+</body>
+</html>

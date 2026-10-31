@@ -8,6 +8,7 @@ import { Sfx } from './audio.js';
 import { $, msg, banner } from './ui.js';
 import { L, setLang, getLang, applyHTML, islandName } from './i18n.js';
 import { STORY, STORY_EN, zoneAt, ZONES } from './data.js';
+import { buildRoster, ERAS } from './samurai.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
@@ -119,7 +120,7 @@ function newGame() {
   G = {
     state: 'play', t: 0, hp: 300, maxHp: 300, hull: 300, maxHull: 300, st: 100, maxSt: 100, stDelay: 0, lastHurt: -10,
     gold: 0, taken: new Set(), sunk: 0, kills: 0, bosses: 0, progress: 0, final: false, finalCleared: false, minX: 0,
-    islands, islets, islandNames, harborsReal, seaRoutes, slain: new Set(), raided: [], guards: new Map(), fleet: new Map(),
+    islands, islets, islandNames, harborsReal, seaRoutes, slain: new Set(), seed: (Math.random() * 1e9) | 0, raided: [], guards: new Map(), fleet: new Map(),
     land, board, die, onGoal,
   };
   return G;
@@ -149,6 +150,7 @@ function setLoad(t) { $('loadtext').textContent = t; }
 function startSea() {
   if (sea) { sea.scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
   newGame();
+  G.roster = buildRoster(islands, G.seed); // 武将の名簿（島ごと・海の船）
   sea = new Sea(renderer, G);
   sea.build();
   sea.updateChunks(true);
@@ -181,7 +183,7 @@ $('btnTitle').addEventListener('click', () => { restart(true); });
 $('btnPause').addEventListener('click', () => togglePause());
 $('btnView').addEventListener('click', () => { I.toggleView = true; });
 $('btnResume').addEventListener('click', () => togglePause());
-$('btnQuit').addEventListener('click', () => { saveGame(); $('pause').classList.add('hidden'); restart(true); });
+$('btnQuit').addEventListener('click', () => { saveGame(); $('pause').classList.add('hidden'); Sfx.resume(); restart(true); });
 $('btnContinue').addEventListener('click', () => { Sfx.init(); continueGame(); });
 
 // ---------------- セーブ（タイトルに戻るとき自動で） ----------------
@@ -199,7 +201,7 @@ function saveGame() {
   }
   const data = {
     v: 1, at: Date.now(), t: G.t, hp: G.hp, gold: G.gold, taken: [...G.taken], sunk: G.sunk, kills: G.kills, bosses: G.bosses, minX: G.minX,
-    ship: [P.x, P.z, P.h], slain: [...(G.slain || [])], guards: [...G.guards.entries()], fleet, island: island ? island.isl.id : null,
+    ship: [P.x, P.z, P.h], seed: G.seed, slain: [...(G.slain || [])], guards: [...G.guards.entries()], fleet, island: island ? island.isl.id : null,
   };
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* 保存できない */ }
 }
@@ -210,11 +212,12 @@ function continueGame() {
   Object.assign(G, { t: d.t || 0, hp: Math.max(1, d.hp || G.maxHp), gold: d.gold || 0, sunk: d.sunk || 0, kills: d.kills || 0, bosses: d.bosses || 0, minX: d.minX ?? G.minX });
   G.taken = new Set(d.taken || []);
   G.slain = new Set(d.slain || []);
+  if (d.seed) { G.seed = d.seed; G.roster = buildRoster(islands, G.seed); }
   G.guards = new Map(d.guards || []);
   G.fleet = new Map();
   for (const [key, type, zi, capJa, crewN] of d.fleet || []) {
     const z = ZONES[zi] || ZONES[1];
-    const cap = z.captains.find((c) => c.ja === capJa) || z.captains[0];
+    const cap = Object.values(ERAS).flat().find((c) => c.ja === capJa) || { ja: capJa || z.faction.name, en: capJa || z.faction.en, style: 'jp' };
     G.fleet.set(key, { type, cap, faction: z.faction, crewN });
   }
   const [x, zz, h] = d.ship;
@@ -253,8 +256,8 @@ function restart(toTitle) {
 }
 function togglePause() {
   if (!G) return;
-  if (G.state === 'play') { G.state = 'pause'; $('pause').classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); }
-  else if (G.state === 'pause') { G.state = 'play'; $('pause').classList.add('hidden'); }
+  if (G.state === 'play') { G.state = 'pause'; $('pause').classList.remove('hidden'); if (document.pointerLockElement) document.exitPointerLock(); Sfx.suspend(); } // 止めている間は音も止める
+  else if (G.state === 'pause') { G.state = 'play'; $('pause').classList.add('hidden'); Sfx.resume(); }
 }
 
 // ---- 上陸と乗船 ----
@@ -436,11 +439,12 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
   if (sea) sea.resize(); if (island) island.resize();
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) { saveGame(); if (G && G.state === 'play') togglePause(); Sfx.suspend(); } else Sfx.resume(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { saveGame(); if (G && G.state === 'play') togglePause(); Sfx.suspend(); } else if (!paused()) Sfx.resume(); });
 // 電話や通知などで音が止まったときは、次に触ったときに戻す
-addEventListener('pointerdown', () => Sfx.resume(), true);
-addEventListener('touchstart', () => Sfx.resume(), { capture: true, passive: true });
-setInterval(() => { if (!document.hidden && Sfx.state === 'interrupted') Sfx.resume(); }, 2000);
+const paused = () => G && G.state === 'pause';
+addEventListener('pointerdown', () => { if (!paused()) Sfx.resume(); }, true);
+addEventListener('touchstart', () => { if (!paused()) Sfx.resume(); }, { capture: true, passive: true });
+setInterval(() => { if (!document.hidden && !paused() && Sfx.state === 'interrupted') Sfx.resume(); }, 2000);
 
 window.__kz = { get G() { return G; }, get sea() { return sea; }, get island() { return island; }, I };
 boot().catch((e) => { console.error(e); setLoad('読み込みに失敗しました / Failed to load: ' + e.message); });

@@ -245,6 +245,8 @@ export class Island {
     const t = ((x - p.ax) * dx + (z - p.az) * dz) / (L * L), side = Math.abs(((x - p.ax) * dz - (z - p.az) * dx) / L);
     return t > -0.05 && t < 1.05 && side < p.hw ? p.y : null;
   }
+  inBuilding(x, z) { for (const b of this.bgrid(x, z)) if (insideOBB(b, x, z, 0.35)) return true; return false; }
+  canWalkOpen(x, z) { const N = this.N, half = this.size / 2; const i = Math.round((x + half) / this.cell), j = Math.round((z + half) / this.cell); return i >= 1 && j >= 1 && i < N - 1 && j < N - 1; }
   canWalk(x, z) {
     if (this.onPlank(x, z) !== null) return true;
     const N = this.N, half = this.size / 2;
@@ -337,6 +339,12 @@ export class Island {
     // 主人公：岸から少し内陸に立つ（背中のカメラが船に埋まらないように）
     let px0 = cx0, pz0 = cz0;
     for (let k = 1; k <= 12; k++) { const x = cx0 - dx * k, z = cz0 - dz * k; if (this.canWalk(x, z)) { px0 = x; pz0 = z; } else break; }
+    // 家の中に立ってしまうときは、いちばん近い空き地へ
+    if (this.inBuilding(px0, pz0)) {
+      let found = null;
+      for (let r = 2; r < 80 && !found; r += 2) for (let a = 0; a < 16 && !found; a++) { const x = px0 + Math.cos(a / 16 * TAU) * r, z = pz0 + Math.sin(a / 16 * TAU) * r; if (this.hAt(x, z) > 0.3 && this.canWalk(x, z)) found = [x, z]; }
+      if (found) [px0, pz0] = found;
+    }
     this.P = {
       x: px0, z: pz0, y: this.hAt(px0, pz0), r: K.pr, face: Math.atan2(-dz, -dx), vx: 0, vz: 0, dashing: false, inv: 1.5, atk: null,
       cdSword: 0, cdSpear: 0, combo: 0, comboT: 0, gait: 0, stDelay: 0, stepT: 0, dead: false,
@@ -620,14 +628,13 @@ export class Island {
     const G = this.G, T = this.treasure;
     const prog = G.progress || 0;
     const color = this.G.zoneColor || '#3a4a6a';
-    let pool = [...zoneAt(this.isl.lon).captains, ...ISLAND_BOSSES];
-    if (!pool.length) pool = [...ZONES[ZONES.length - 2].captains]; // 関門の島は幕末の志士
-    // 一度討ち取った武将は二度と出てこない。足りなければ名もなき足軽大将
+    // この島の武将（名簿で割り当て済み）。一度討ち取った武将は二度と出てこない。足りなければ名もなき足軽大将
     const slain = this.G.slain || new Set();
-    pool = pool.filter((p) => !slain.has(p.ja));
+    const roster = (this.G.roster && this.G.roster.byIsland[this.isl.id]) || [];
+    const pool = roster.map((c) => (c && !slain.has(c.ja) ? c : null));
     let gen = 0;
     const nameless = () => { gen++; const n = ['一', '二', '三', '四', '五', '六', '七'][gen - 1] || gen; return { ja: `${this.isl.name}の足軽大将 其の${n}`, en: `Ashigaru captain #${gen} of ${islandName(this.isl)}`, style: 'jp', nameless: true }; };
-    const cap = pool.length ? pool[(Math.random() * pool.length) | 0] : nameless();
+    const cap = pool[0] || nameless();
     this.cap = cap;
     const boss = { name: L(`${cap.ja}（${this.isl.name}の頭目）`, `${cap.en} (boss of ${islandName(this.isl)})`), short: L(cap.ja, cap.en), hp: 230 + prog * 260, pow: 18 + prog * 10, brave: Math.random() < 0.5 + prog * 0.3 };
     this.boss = boss;
@@ -635,7 +642,7 @@ export class Island {
     // 小早川のように、頭目が率いる軍勢がいくつも布陣する
     this.units = [];
     const area = this.isl.areaKm2 || 3;
-    const nUnits = clamp(Math.round(3 + prog * 3 + Math.min(2, area / 20)), 3, 7);
+    const nUnits = Math.max(3, roster.length);
     const used = new Set([cap.ja]);
     for (let u = 0; u < nUnits; u++) {
       let cx, cz;
@@ -650,7 +657,7 @@ export class Island {
         if (!ok) continue;
       }
       let gcap = cap;
-      if (u > 0) { const cands = pool.filter((p) => !used.has(p.ja)); gcap = cands.length ? cands[(Math.random() * cands.length) | 0] : nameless(); used.add(gcap.ja); }
+      if (u > 0) gcap = pool[u] || nameless();
       const group = 'u' + u;
       const info = u === 0 ? boss : { name: L(`${gcap.ja}の軍勢`, `${gcap.en}'s band`), short: L(gcap.ja, gcap.en), hp: boss.hp * 0.7, pow: boss.pow * 0.85, brave: Math.random() < 0.5, west: false, capJa: gcap.ja };
       if (u === 0) { info.west = false; info.capJa = cap.ja; }
@@ -805,7 +812,8 @@ export class Island {
     } else { const k = 1 - Math.exp(-dt * 8); P.vx -= P.vx * k; P.vz -= P.vz * k; }
     // 歩けるところだけ（壁に沿って滑る）
     const nx = P.x + P.vx * dt, nz = P.z + P.vz * dt;
-    if (this.canWalk(nx, nz)) { P.x = nx; P.z = nz; }
+    if (this.inBuilding(P.x, P.z) && this.canWalkOpen(nx, nz)) { P.x = nx; P.z = nz; }
+    else if (this.canWalk(nx, nz)) { P.x = nx; P.z = nz; }
     else if (this.canWalk(nx, P.z)) { P.x = nx; P.vz *= 0.5; }
     else if (this.canWalk(P.x, nz)) { P.z = nz; P.vx *= 0.5; }
     else { P.vx *= 0.3; P.vz *= 0.3; }

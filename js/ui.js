@@ -26,6 +26,9 @@ export function flash(color) {
 // 3D の位置に出す文字
 const v3 = new THREE.Vector3();
 export function project(camera, x, y, z) {
+  // カメラの後ろにあるものは出さない（そのまま計算すると左右上下が反転して前に出てしまう）
+  v3.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
+  if (v3.z > -0.1) return null;
   v3.set(x, y, z).project(camera);
   if (v3.z > 1 || v3.z < -1) return null;
   return [(v3.x * 0.5 + 0.5) * innerWidth, (-v3.y * 0.5 + 0.5) * innerHeight];

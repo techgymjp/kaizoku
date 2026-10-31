@@ -339,3 +339,5 @@ body.touch #minimap { width: min(44vw, 300px); height: min(31.4vw, 214px); left:
 #btnContinue { display: block; margin: 16px auto 0; background: linear-gradient(#2a7ab0, #164a70); border-color: #a0d0f0; }
 #btnContinue.hidden { display: none; }
 #btnContinue + #btnStart { margin-top: 10px; font-size: 20px; padding: 9px 36px; }
+.howto { display: inline-block; margin: 14px 8px 0 0; text-decoration: none; }
+#pause .panel .btn { display: block; margin: 10px auto 0; text-decoration: none; width: max-content; }

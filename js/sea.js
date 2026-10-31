@@ -5,6 +5,7 @@ import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, DANNOURA, s
 import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeGanryu, makeFleetGeometry, makeFishingPort, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
+import { eraOf } from './samurai.js';
 import { Fireworks } from './fireworks.js';
 import { L, islandName, getLang, romaji } from './i18n.js';
 const N = (o) => L(o.name, o.en || o.name);
@@ -648,12 +649,17 @@ export class Sea {
       const r = Math.random();
       const type = r < 0.12 + prog * 0.2 && zone.max >= 3 ? 'ataka' : r < 0.45 + prog * 0.2 ? 'seki' : 'kobaya';
       const n = type === 'kobaya' && Math.random() < 0.5 ? 2 : 1;
-      const alive = zone.captains.filter((c) => !(this.G.slain && this.G.slain.has(c.ja))); // 討ち取った武将の船は出てこない
-      const cap = alive.length ? alive[(Math.random() * alive.length) | 0] : { ja: zone.faction.name + 'の残党', en: 'remnants of ' + zone.faction.en, style: 'jp' };
+      const cap = this.nextSeaCaptain(lon, zone);
       for (let i = 0; i < n; i++) this.spawnEnemy(type, x + i * 20, z + i * 12, zone.faction, { cap, hpMul: 1 + prog * 0.6, dmgMul: 1 + prog * 0.5 });
       if (G.t - (this.lastWarn || -99) > 20) { msg(L(`${cap.ja}の船が現れた！（${zone.faction.name}）`, `${cap.en}'s ship sighted! (${zone.faction.en})`), 'warn', 4); this.lastWarn = G.t; Sfx.horn(0.25, 0, 0.95); }
       break;
     }
+  }
+  // 海を回る船の大将：その時代の名簿で、島に割り当てていない武将から順に。尽きたら残党
+  nextSeaCaptain(lon, zone) {
+    const G = this.G, q = G.roster && G.roster.sea[eraOf(lon)];
+    while (q && q.length) { const c = q.shift(); if (!(G.slain && G.slain.has(c.ja))) return c; }
+    return { ja: zone.faction.name + 'の残党', en: 'remnants of ' + zone.faction.en, style: 'jp', nameless: true };
   }
   // 島ごとに縄張りを守る船を 3 隻。近づいたときに出す
   spawnGuards() {
@@ -668,9 +674,8 @@ export class Sea {
       const R = Math.max(isl.bbox[2] - isl.bbox[0], isl.bbox[3] - isl.bbox[1]) * SEA_K * 0.5 + 90;
       const [lon] = sea2ll(cx, cz);
       const zone = zoneAt(lon);
-      if (!zone.captains.length) continue;
-      const alive = zone.captains.filter((c) => !(this.G.slain && this.G.slain.has(c.ja))); // 討ち取った武将の船は出てこない
-      const cap = alive.length ? alive[(Math.random() * alive.length) | 0] : { ja: zone.faction.name + 'の残党', en: 'remnants of ' + zone.faction.en, style: 'jp' };
+      const caps = ((G.roster && G.roster.byIsland[isl.id]) || []).filter((c) => c && !(G.slain && G.slain.has(c.ja))); // 島の武将が守りの船の大将
+      if (!caps.length) continue;
       const name = islandName(isl);
       const prog = G.progress;
       let made = 0;
@@ -678,6 +683,8 @@ export class Sea {
         const ang = (made / 3) * TAU + k * 0.37;
         const x = cx + Math.cos(ang) * R, z = cz + Math.sin(ang) * R;
         if (!this.waterAt(x, z, 3) || Math.hypot(x - P.x, z - P.z) < 250) continue;
+        if (made >= caps.length) break;
+        const cap = caps[made];
         const type = made === 0 ? (prog > 0.35 ? 'ataka' : 'seki') : 'kobaya';
         const e = this.spawnEnemy(type, x, z, zone.faction, { cap, key: `g:${isl.id}:${made}`, guard: { id: isl.id, name, cx, cz, R, ang }, hpMul: 1 + prog * 0.6, dmgMul: 1 + prog * 0.5,
           name: L(`${cap.ja}の${type === 'kobaya' ? '見張り船' : '守りの船'}（${name}）`, `${cap.en}'s ${type === 'kobaya' ? 'picket' : 'guard ship'} (${name})`) });
@@ -1250,6 +1257,7 @@ export class Sea {
   sinkEnemy(e) {
     const G = this.G;
     if (G.fleet) G.fleet.delete(e.key);
+    if (e.cap && !e.cap.nameless && !e.final) { if (!G.slain) G.slain = new Set(); G.slain.add(e.cap.ja); } // 二度と出てこない
     e.sink = 0.001;
     G.sunk++;
     Sfx.sink(); Sfx.swell(0.5);

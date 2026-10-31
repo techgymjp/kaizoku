@@ -123,6 +123,7 @@ export class Sea {
     this.buildIslets();
     this.buildNames();
     this.buildHarbors();
+    this.buildRoutes();
     this.fw = new Fireworks(S, 0.6, true);
     this.bulletGeo = new THREE.SphereGeometry(0.5, 6, 4);
     this.bulletMat = new THREE.MeshBasicMaterial({ color: '#2a2a2a' });
@@ -328,7 +329,22 @@ export class Sea {
       this.marks.push({ l, x, z, o, seen: false });
     }
   }
-  // 島ごとの港：集落（地名の位置）にいちばん近い岸
+  // フェリーの航路（地理院地図）。港へ向かう目安になる
+  buildRoutes() {
+    const pts = [];
+    this.routeXY = [];
+    for (const r of this.G.seaRoutes || []) {
+      const xy = r.map(([lon, lat]) => ll2sea(lon, lat));
+      this.routeXY.push(xy);
+      for (let i = 0; i < xy.length - 1; i++) pts.push(xy[i][0], 0.35, xy[i][1], xy[i + 1][0], 0.35, xy[i + 1][1]);
+    }
+    if (!pts.length) return;
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const line = new THREE.LineSegments(g, new THREE.LineDashedMaterial({ color: '#f4f0e0', dashSize: 14, gapSize: 10, transparent: true, opacity: 0.55 }));
+    line.computeLineDistances(); line.frustumCulled = false;
+    this.scene.add(line);
+  }
+  // 島ごとの港：実際の港（地名検索・航路の端）か、集落（地名の位置）にいちばん近い岸
   buildHarbors() {
     const beamGeo = new THREE.CylinderGeometry(9, 11, 160, 16, 1, true); // 太い光の柱（この中に入れば上陸）
     const real = this.G.harborsReal || {};
@@ -500,6 +516,10 @@ export class Sea {
     g.drawImage(this.miniBg, sx / ms, sy / ms, span / ms, sh / ms, 0, 0, W, H);
     const k = W / span;
     const tx = (x) => (x / SEA_K - sx) * k, ty = (z) => (z / SEA_K - sy) * k;
+    // フェリーの航路
+    g.save(); g.setLineDash([5, 4]); g.strokeStyle = 'rgba(255,250,235,0.75)'; g.lineWidth = 1.5;
+    for (const xy of this.routeXY || []) { g.beginPath(); xy.forEach(([x, z], i) => { const X = tx(x), Y = ty(z); if (i) g.lineTo(X, Y); else g.moveTo(X, Y); }); g.stroke(); }
+    g.restore();
     // 島（財宝の有無）
     for (const isl of this.G.islands) {
       const x = (isl.px - sx) * k, y = (isl.py - sy) * k;

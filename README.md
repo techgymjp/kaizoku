@@ -60,7 +60,7 @@ BGM は都節音階・陽音階で新しく作りました（海：尺八と琴�
 - `js/i18n.js` — 日本語・英語
 - `js/vendor/three.module.min.js` — three.js r170（MIT）
 - `data/` — 瀬戸内海の標高（`dem10.png`）と有人島（`islands.json`）
-- `tools/` — `data/` を作るスクリプト（`node tools/geocode.mjs` → `node tools/build-dem.mjs` → `node tools/build-islands.mjs`）
+- `tools/` — `data/` を作るスクリプト（`node tools/geocode.mjs` → `node tools/build-dem.mjs` → `node tools/build-islands.mjs` → `node tools/build-names.mjs` → `node tools/build-harbors.mjs` → `node tools/build-searoutes.mjs`）。港は地名検索の「〇〇港」と地理院地図の航路の端から決める
 
 ## 出典
 

@@ -114,12 +114,12 @@ nameInput.addEventListener('input', () => {
 $('nameReset').addEventListener('click', () => { customName = ''; try { localStorage.removeItem('kaizoku.name'); } catch (e) { /* 無視 */ } syncName(); renderStory(true); });
 
 // ---------------- 状態 ----------------
-let G = null, sea = null, island = null, mode = 'title', islands = [], islets = [], islandNames = [], harborsReal = {};
+let G = null, sea = null, island = null, mode = 'title', islands = [], islets = [], islandNames = [], harborsReal = {}, seaRoutes = [];
 function newGame() {
   G = {
     state: 'play', t: 0, hp: 300, maxHp: 300, hull: 300, maxHull: 300, st: 100, maxSt: 100, stDelay: 0, lastHurt: -10,
     gold: 0, taken: new Set(), sunk: 0, kills: 0, bosses: 0, progress: 0, final: false, finalCleared: false, minX: 0,
-    islands, islets, islandNames, harborsReal, raided: [], guards: new Map(), fleet: new Map(),
+    islands, islets, islandNames, harborsReal, seaRoutes, raided: [], guards: new Map(), fleet: new Map(),
     land, board, die, onGoal,
   };
   return G;
@@ -132,6 +132,7 @@ async function boot() {
   setLoad(L('瀬戸内海の地形を読み込んでいます……', 'Loading the Seto Inland Sea…'));
   await loadDEM();
   islands = await (await fetch('data/islands.json')).json();
+  seaRoutes = await fetch('data/searoutes.json').then((r) => (r.ok ? r.json() : [])).catch(() => []);
   harborsReal = await fetch('data/harbors.json').then((r) => (r.ok ? r.json() : {})).catch(() => ({}));
   islandNames = await fetch('data/islandnames.json').then((r) => (r.ok ? r.json() : [])).catch(() => []);
   islets = await fetch('data/islets.json').then((r) => (r.ok ? r.json() : [])).catch(() => []);

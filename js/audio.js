@@ -19,7 +19,7 @@ export const Sfx = (() => {
     bgmBus = ac.createGain(); bgmBus.gain.value = 0.75; bgmBus.connect(master);
     makeReverb();
     if (bgm.mode) { const m = bgm.mode; bgm.mode = null; setBgm(m); }
-    setTimeout(() => renderAllHook && renderAllHook(), 300);
+    setTimeout(() => renderAllHook && renderAllHook(), 0);
   }
 
   // 兵士たちの「ワー」という鬨の声（ノイズ＋声のフォルマント）
@@ -320,6 +320,7 @@ export const Sfx = (() => {
   async function renderAll() { for (const m of ['title', 'sea', 'battle', 'island', 'final', 'clear']) { try { await renderSong(m); } catch (e) { /* 書き出せない端末では、その場で鳴らす */ } await new Promise((r) => setTimeout(r, 50)); } }
   function bgmTick() {
     if (player) return; // 書き出した曲を鳴らしている
+    if (filesOK !== false) return; // 読み込み中は無音で待つ（その場で作ると重くて途切れる）
     try { bgmStep(); } catch (e) { if (bgm.mode && ac) { bgm.next = ac.currentTime + 0.2; bgm.step++; } }
   }
   function bgmStep() {
@@ -344,7 +345,8 @@ export const Sfx = (() => {
     else {
       stopRendered();
       // 書き出しが終わったら、書き出した曲に切り替える
-      renderSong(mode).then(() => { if (bgm.mode === mode && (!player || player.mode !== mode)) playRendered(mode); }).catch(() => {});
+      if (filesOK === false) renderSong(mode).then(() => { if (bgm.mode === mode && (!player || player.mode !== mode)) playRendered(mode); }).catch(() => {});
+      else loadAll(); // 読み込みが終わったところで流れる
     }
     if (!bgm.timer) bgm.timer = setInterval(bgmTick, 200);
     if (mode === 'final') setTimeout(() => api.horn(0.4, 0, 0.8, [0.8, 0.8, 2.2]), 400);
@@ -488,25 +490,40 @@ export const Sfx = (() => {
   api.sfxCount = () => Object.values(sfxBuf).filter((l) => l.length).length + '/' + SFX.length;
   // 音のファイル（assets/audio/*.mp3。tools/render-audio.cjs で書き出したもの）を読み込む。無ければその場で書き出す
   const SONG_LIST = ['title', 'sea', 'battle', 'island', 'final', 'clear'];
-  async function loadFile(url) { const r = await fetch(url); if (!r.ok) throw new Error(url); return await ac.decodeAudioData(await r.arrayBuffer()); }
-  async function loadAll() {
-    let manifest = null;
-    try { manifest = await (await fetch('assets/audio/manifest.json')).json(); } catch (e) { manifest = null; }
-    if (manifest) {
-      // 効果音（短いので先に）
-      await Promise.all(SFX.map(async ([name]) => {
-        const n = manifest.sfx[name] || 0; const list = [];
-        for (let v = 0; v < n; v++) { try { list.push(await loadFile(`assets/audio/sfx-${name}-${v}.mp3`)); } catch (e) { /* 無い */ } }
-        if (list.length) sfxBuf[name] = list;
-      }));
-      for (const m of SONG_LIST) {
-        try { const b = await loadFile(`assets/audio/bgm-${m}.mp3`); b.loopLen = manifest.bgm[m]; rendered[m] = b; if (bgm.mode === m && (!player || player.mode !== m)) playRendered(m); } catch (e) { /* 無い */ }
-      }
-    }
-    // 読み込めなかったものだけ、その場で書き出す
-    if (SFX.some(([n]) => !sfxBuf[n] || !sfxBuf[n].length)) await renderSfx(true);
-    for (const m of SONG_LIST) if (!rendered[m]) { try { await renderSong(m); } catch (e) { /* その場で鳴らす */ } }
+  // ページを開いたらすぐ（画面に触る前から）読み込みと展開を始める。展開には音を鳴らさない別の入れ物を使う
+  let decoder = null, filesOK = null, loading = null;
+  async function loadFile(url) {
+    const r = await fetch(url); if (!r.ok) throw new Error(url);
+    if (!decoder) decoder = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 1, 44100);
+    return await decoder.decodeAudioData(await r.arrayBuffer());
   }
+  function loadAll() {
+    if (loading) return loading;
+    loading = (async () => {
+      let manifest = null;
+      try { manifest = await (await fetch('assets/audio/manifest.json')).json(); } catch (e) { manifest = null; }
+      filesOK = !!manifest;
+      if (manifest) {
+        const song = async (m) => { try { const b = await loadFile(`assets/audio/bgm-${m}.mp3`); b.loopLen = manifest.bgm[m]; rendered[m] = b; if (ac && bgm.mode === m && (!player || player.mode !== m)) playRendered(m); } catch (e) { /* 無い */ } };
+        // 最初に流れる曲を先に、次に効果音、残りの曲
+        await song('title'); await song('sea');
+        await Promise.all(SFX.map(async ([name]) => {
+          const n = manifest.sfx[name] || 0; const list = [];
+          for (let v = 0; v < n; v++) { try { list.push(await loadFile(`assets/audio/sfx-${name}-${v}.mp3`)); } catch (e) { /* 無い */ } }
+          if (list.length) sfxBuf[name] = list;
+        }));
+        for (const m of SONG_LIST) if (!rendered[m]) await song(m);
+      }
+      // ファイルが無いときだけ、音が使えるようになってから書き出す
+      if (!filesOK) {
+        while (!ac) await new Promise((r) => setTimeout(r, 300));
+        if (SFX.some(([n]) => !sfxBuf[n] || !sfxBuf[n].length)) await renderSfx(true);
+        for (const m of SONG_LIST) if (!rendered[m]) { try { await renderSong(m); } catch (e) { /* その場で鳴らす */ } }
+      }
+    })();
+    return loading;
+  }
+  api.preload = loadAll;
   renderAllHook = loadAll;
   // 書き出し用（tools/render-audio.cjs から使う）
   api._export = { renderSong, renderSfx, sfxBuf, rendered, SFX, SONG_LIST, songLoop: (m) => { const S = SONGS[m]; return S.bars.length * 6 * (60 / S.dq / 3); } };

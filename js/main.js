@@ -126,6 +126,7 @@ function newGame() {
 }
 
 async function boot() {
+  Sfx.preload(); // 音のファイルは、画面に触る前から読み込んでおく
   applyHTML();
   // 画面左上の紋：笹竜胆
   { const mon = document.querySelector('.mon'); mon.textContent = ''; mon.style.backgroundImage = `url(${crestCanvas('rindo', '#f4f2ea', '#141414', 96).toDataURL()})`; mon.style.backgroundSize = 'cover'; }

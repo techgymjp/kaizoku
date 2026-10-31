@@ -770,3 +770,42 @@ export function makeFleetGeometry() {
     [B(0.03, 0.7, 0.03), '#3a2418', 0, 0.45, 0], [B(0.5, 0.36, 0.02), '#e8e0cc', 0, 0.52, -0.02], [B(0.03, 0.5, 0.03), '#3a2418', 0, 0.35, 0.25], [B(0.38, 0.24, 0.02), '#e8e0cc', 0, 0.42, 0.24],
   ]);
 }
+
+// ---- 島の古い漁港（石積みの防波堤・赤い小さな灯台・木の桟橋・漁船・瓦屋根の小屋・干した網）。1 単位 = 1m、+z が沖 ----
+export function makeFishingPort(k = 1) {
+  const g = new THREE.Group();
+  const stone = mat('#8c877c'), stone2 = mat('#a29c90'), wood = mat('#6a4a2c'), roof = mat('#4a4e58'), wall = mat('#d8cfbc');
+  const B = (w, h, d, m, x, y, z, ry = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w * k, h * k, d * k), m); o.position.set(x * k, y * k, z * k); o.rotation.y = ry; g.add(o); return o; };
+  // 岸壁（石積み）
+  B(60, 3, 8, stone, 0, -0.5, 0); B(60, 0.4, 8.4, stone2, 0, 1.1, 0);
+  // 防波堤：左から沖へ伸びて曲がる
+  B(6, 3.4, 70, stone, -32, -0.3, 35); B(6.4, 0.5, 70, stone2, -32, 1.5, 35);
+  B(34, 3.4, 6, stone, -18, -0.3, 70); B(34.4, 0.5, 6.4, stone2, -18, 1.5, 70);
+  // 防波堤の先の赤い灯台（右側は白）
+  const lt = new THREE.Mesh(new THREE.CylinderGeometry(1.4 * k, 1.8 * k, 9 * k, 10), mat('#c8261e')); lt.position.set(-3 * k, 6 * k, 70 * k); g.add(lt);
+  const lc = new THREE.Mesh(new THREE.CylinderGeometry(1.6 * k, 1.6 * k, 1.4 * k, 10), mat('#f2eee6')); lc.position.set(-3 * k, 11 * k, 70 * k); g.add(lc);
+  const lw = new THREE.Mesh(new THREE.CylinderGeometry(1.1 * k, 1.6 * k, 7 * k, 10), mat('#f2eee6')); lw.position.set(30 * k, 4.5 * k, 46 * k); g.add(lw);
+  B(6, 3.4, 40, stone, 30, -0.3, 22); B(6.4, 0.5, 40, stone2, 30, 1.5, 22);
+  // 木の桟橋
+  B(5, 0.5, 34, wood, 8, 1.2, 20);
+  for (let z = 6; z <= 36; z += 6) for (const s of [-1, 1]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.3 * k, 0.3 * k, 4 * k, 6), wood); p.position.set((8 + s * 2.2) * k, -0.5 * k, z * k); g.add(p); }
+  // 漁船（小さな木造船）
+  const boat = (x, z, ry, c) => {
+    const b = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(2.6 * k, 1.2 * k, 9 * k), mat(c)); hull.position.y = 0.4 * k; b.add(hull);
+    const bow = new THREE.Mesh(new THREE.ConeGeometry(1.3 * k, 3 * k, 4), mat(c)); bow.rotation.x = Math.PI / 2; bow.rotation.y = Math.PI / 4; bow.position.set(0, 0.4 * k, 5.8 * k); b.add(bow);
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(1.8 * k, 1.6 * k, 2 * k), wall); cab.position.set(0, 1.6 * k, -2.5 * k); b.add(cab);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * k, 0.08 * k, 4 * k, 4), wood); mast.position.set(0, 3 * k, 0.5 * k); b.add(mast);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.2 * k, 0.8 * k), mat(['#d02020', '#2a6ad0', '#f0c020'][(x * 7 + z) & 1 ? 0 : 1], { side: THREE.DoubleSide })); flag.position.set(0.6 * k, 4.6 * k, 0.5 * k); b.add(flag);
+    b.position.set(x * k, 0, z * k); b.rotation.y = ry; g.add(b);
+  };
+  boat(14, 18, 0.1, '#f2eee6'); boat(2, 22, -0.08, '#3a6a9a'); boat(14, 32, 0.05, '#f2eee6'); boat(-14, 40, 1.4, '#c8b48a'); boat(20, 8, 1.6, '#3a6a9a');
+  // 岸の小屋（瓦屋根）と干した網、木箱
+  for (const [x, w] of [[-20, 10], [-6, 8], [22, 12]]) {
+    B(w, 4, 7, wall, x, 3.2, -8);
+    const r = new THREE.Mesh(new THREE.ConeGeometry(Math.hypot(w, 7) * 0.62 * k, 2.4 * k, 4), roof); r.rotation.y = Math.PI / 4; r.scale.set(w / Math.hypot(w, 7) * 1.35, 1, 7 / Math.hypot(w, 7) * 1.35); r.position.set(x * k, 6.4 * k, -8 * k); g.add(r);
+  }
+  for (const x of [-12, 4]) { B(0.15, 2.4, 0.15, wood, x - 2, 2.4, -1); B(0.15, 2.4, 0.15, wood, x + 2, 2.4, -1); B(4.2, 1.8, 0.05, mat('#4a5a3a'), x, 2.6, -1); }
+  for (let i = 0; i < 6; i++) B(1.1, 0.8, 0.8, mat(i % 2 ? '#3a6aa0' : '#8a6a3a'), 10 + i * 1.2, 1.7, -2);
+  return g;
+}

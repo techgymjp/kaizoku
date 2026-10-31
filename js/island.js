@@ -5,7 +5,7 @@ import { DEM, hPx, px2ll, lon2gx, lat2gy, gx2lon, gy2lat, loadImage, fetchWithTi
 import { LANDMARKS, ISLAND_NOTES, ISLAND_NOTES_EN, ISLAND_BOSSES, ZONES, zoneAt } from './data.js';
 import { decodeMVT } from './mvt.js';
 import { Fireworks } from './fireworks.js';
-import { makeCrewman, makeWarrior, poseWarrior, makeTorii, makeHall, makePagoda, makeJoyato, makeChest, makeOnigiri, makeShip, makeDeer, makeRabbit, makeGangi, makePumpkin, mat } from './models.js';
+import { makeFishingPort, makeCrewman, makeWarrior, poseWarrior, makeTorii, makeHall, makePagoda, makeJoyato, makeChest, makeOnigiri, makeShip, makeDeer, makeRabbit, makeGangi, makePumpkin, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
 import { L, islandName } from './i18n.js';
@@ -306,6 +306,9 @@ export class Island {
     ship.traverse((o) => { if (o.isMesh) { o.material = cutaway(o.material.clone()); } });
     this.ship = { m: ship, x: shx, z: shz };
     // 桟橋
+    // 港の漁船（岸壁や家並みは空中写真と建物の形のまま。海の上に古い漁船を浮かべる）
+    { const port = makeFishingPort(1); const keep = port.children.filter((o) => o.type === 'Group'); // 漁船だけ使う
+      for (const b of keep) { const lx = b.position.x, lz = b.position.z; const ang = Math.atan2(dx, dz); const wx = shx + Math.cos(ang) * lx + Math.sin(ang) * (lz - 20), wz = shz - Math.sin(ang) * lx + Math.cos(ang) * (lz - 20); if (this.hAt(wx, wz) > -0.5) continue; b.position.set(wx, 0.1, wz); b.rotation.y += ang; S.add(b); } }
     // 桟橋（幅 3.2m。上を歩ける）
     const pl = hypot(shx - cx0, shz - cz0) + 2, pY = Math.max(1.2, this.hAt(cx0, cz0) + 0.2);
     const plank = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.25, pl), mat('#7a5a3a'));

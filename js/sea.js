@@ -2,7 +2,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { DEM, SEA_K, VEX, hPx, hSea, ll2sea, sea2ll, ll2px, isLandPx, compAt, nearestLandPx } from './geo.js';
 import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, DANNOURA, shipName, WIND, TIDE, STRAITS, HARBOR_HINT } from './data.js';
-import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeGanryu, makeFleetGeometry, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
+import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeGanryu, makeFleetGeometry, makeFishingPort, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
 import { Fireworks } from './fireworks.js';
@@ -330,11 +330,13 @@ export class Sea {
   }
   // 島ごとの港：集落（地名の位置）にいちばん近い岸
   buildHarbors() {
-    const beamGeo = new THREE.CylinderGeometry(3, 5, 160, 12, 1, true);
+    const beamGeo = new THREE.CylinderGeometry(9, 11, 160, 16, 1, true); // 太い光の柱（この中に入れば上陸）
+    const real = this.G.harborsReal || {};
     this.beamMat = new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, fog: false });
     for (const isl of this.G.islands) {
       const hint = HARBOR_HINT[isl.id];
-      const [gx, gy] = hint ? ll2px(hint[0], hint[1]) : ll2px(isl.lon, isl.lat);
+      const rp = real[isl.id]; // 地名検索で見つかった実際の港
+      const [gx, gy] = hint ? ll2px(hint[0], hint[1]) : rp ? ll2px(rp[0], rp[1]) : ll2px(isl.lon, isl.lat);
       let best = null, bd = 1e9;
       const R = 30;
       for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
@@ -352,7 +354,12 @@ export class Sea {
       // 船を止める海の上（岸から少し沖）
       let wx = best.sx + 0.5, wy = best.sy + 0.5;
       for (let k = 0; k < 4 && hPx(wx + best.ox, wy + best.oy) < -2; k++) { wx += best.ox * 0.5; wy += best.oy * 0.5; }
-      isl.harbor = { x: wx * SEA_K, z: wy * SEA_K, lx: best.lx, ly: best.ly };
+      isl.harbor = { x: wx * SEA_K, z: wy * SEA_K, lx: best.lx, ly: best.ly, ox: best.ox, oy: best.oy, name: rp ? rp[2] : null };
+      // 古い漁港（海から見えるよう大きめに）
+      const port = makeFishingPort(0.25);
+      const cx = (best.lx + 0.5 + best.ox * 0.5) * SEA_K, cz = (best.ly + 0.5 + best.oy * 0.5) * SEA_K;
+      port.position.set(cx, 0.2, cz); port.rotation.y = Math.atan2(best.ox, best.oy);
+      this.scene.add(port);
       const beam = new THREE.Mesh(beamGeo, this.beamMat);
       beam.position.set(isl.harbor.x, 80, isl.harbor.z); beam.visible = false;
       this.scene.add(beam); isl.harbor.beam = beam;
@@ -862,7 +869,7 @@ export class Sea {
     else if (G.state === 'play') {
       // 財宝の残る島の港に入ったら、自動で上陸する
       const nh = this.nearestHarbor();
-      if (nh && nh.d < 45 && (this.noAuto !== nh.isl.id || Math.hypot(P.x - this.noAutoX, P.z - this.noAutoZ) > 250)) {
+      if (nh && nh.d < 11 * (nh.isl.harbor.beam.scale.x || 1) + 3 && (this.noAuto !== nh.isl.id || Math.hypot(P.x - this.noAutoX, P.z - this.noAutoZ) > 250)) {
         const h = nh.isl.harbor;
         msg(L(`${nh.isl.name}の港に入った——上陸！`, `Entering the port of ${islandName(nh.isl)} — landing!`), 'sys', 3);
         G.land({ isl: nh.isl, px: h.lx, py: h.ly, shipPx: P.x / SEA_K, shipPy: P.z / SEA_K, heading: P.h, d: 0 });
@@ -875,7 +882,7 @@ export class Sea {
     Sfx.sea(0.25 + Math.min(0.25, Math.abs(P.v) / 80));
     // 空の色（大坂の朝から壇ノ浦の夕暮れへ）
     this.updateSky(G.progress, G.final);
-    for (const isl of G.islands) if (isl.harbor) { const b = isl.harbor.beam; const d = Math.hypot(isl.harbor.x - P.x, isl.harbor.z - P.z); b.visible = d < 3500 && !G.taken.has(isl.id); if (b.visible) b.scale.set(1 + d / 1500, 1, 1 + d / 1500); }
+    for (const isl of G.islands) if (isl.harbor) { const b = isl.harbor.beam; const d = Math.hypot(isl.harbor.x - P.x, isl.harbor.z - P.z); b.visible = d < 3500 && !G.taken.has(isl.id); if (b.visible) { const s = 1 + Math.max(0, d - 300) / 1500; b.scale.set(s, 1, s); } }
     this.beamMat.opacity = 0.18 + Math.sin(this.t * 3) * 0.06;
     this.nav = this.navHarbor();
     this.updateChunks(false);

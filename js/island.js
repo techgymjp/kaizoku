@@ -200,11 +200,29 @@ export class Island {
     return true;
   }
 
+  // 上陸する場所：防波堤や小さな岩ではなく、島そのもの（大きな陸のかたまり）のうち、港にいちばん近い所
   nearestLandCell(lx, lz, sx, sz) {
     const N = this.N, H = this.H;
+    const lab = new Int32Array(N * N).fill(-1), size = [];
+    for (let k0 = 0; k0 < N * N; k0++) {
+      if (H[k0] <= 0.6 || lab[k0] >= 0) continue;
+      const id = size.length; let n = 0; const st = [k0]; lab[k0] = id;
+      while (st.length) { const k = st.pop(); n++; const i = k % N; for (const q of [i > 0 ? k - 1 : -1, i < N - 1 ? k + 1 : -1, k - N, k + N]) if (q >= 0 && q < N * N && H[q] > 0.6 && lab[q] < 0) { lab[q] = id; st.push(q); } }
+      size.push(n);
+    }
+    // 島の中心（地名の位置）に近い大きなかたまりを島とする
+    const [cx, cz] = this.toLocal(this.isl.lon, this.isl.lat);
+    let islandId = -1, bs = -1e9;
+    for (let k = 0; k < N * N; k += 3) {
+      const id = lab[k]; if (id < 0 || size[id] < 60) continue;
+      const [x, z] = this.cellPos(k % N, (k / N) | 0);
+      const sc = Math.log(size[id]) * 300 - hypot(x - cx, z - cz);
+      if (sc > bs) { bs = sc; islandId = id; }
+    }
     let best = -1, bd = 1e9;
     for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) {
       const k = j * N + i; if (H[k] <= 0.6) continue;
+      if (islandId >= 0 && lab[k] !== islandId) continue;
       const [x, z] = this.cellPos(i, j);
       const d = hypot(x - lx, z - lz) * 0.6 + hypot(x - sx, z - sz);
       if (d < bd) { bd = d; best = k; }

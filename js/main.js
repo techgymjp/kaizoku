@@ -7,7 +7,7 @@ import { Island } from './island.js';
 import { Sfx } from './audio.js';
 import { $, msg, banner } from './ui.js';
 import { L, setLang, getLang, applyHTML, islandName } from './i18n.js';
-import { STORY, STORY_EN, zoneAt } from './data.js';
+import { STORY, STORY_EN, zoneAt, ZONES } from './data.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
@@ -119,7 +119,7 @@ function newGame() {
   G = {
     state: 'play', t: 0, hp: 300, maxHp: 300, hull: 300, maxHull: 300, st: 100, maxSt: 100, stDelay: 0, lastHurt: -10,
     gold: 0, taken: new Set(), sunk: 0, kills: 0, bosses: 0, progress: 0, final: false, finalCleared: false, minX: 0,
-    islands, islets, islandNames, harborsReal, seaRoutes, raided: [], guards: new Map(), fleet: new Map(),
+    islands, islets, islandNames, harborsReal, seaRoutes, slain: new Set(), raided: [], guards: new Map(), fleet: new Map(),
     land, board, die, onGoal,
   };
   return G;
@@ -163,6 +163,7 @@ function showTitle() {
   $('result').classList.add('hidden');
   $('pause').classList.add('hidden');
   renderStory();
+  refreshContinue();
   Sfx.bgm('title');
 }
 function renderStory(keepName) {
@@ -180,9 +181,51 @@ $('btnTitle').addEventListener('click', () => { restart(true); });
 $('btnPause').addEventListener('click', () => togglePause());
 $('btnView').addEventListener('click', () => { I.toggleView = true; });
 $('btnResume').addEventListener('click', () => togglePause());
-$('btnQuit').addEventListener('click', () => { $('pause').classList.add('hidden'); restart(true); });
+$('btnQuit').addEventListener('click', () => { saveGame(); $('pause').classList.add('hidden'); restart(true); });
+$('btnContinue').addEventListener('click', () => { Sfx.init(); continueGame(); });
 
-function start() {
+// ---------------- セーブ（タイトルに戻るとき自動で） ----------------
+const SAVE_KEY = 'kaizoku.save';
+function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* 無視 */ } }
+function saveGame() {
+  if (!G || !sea || (G.state !== 'play' && G.state !== 'pause')) return;
+  const P = sea.P;
+  // 船（決戦の前の状態で）と、航海で出会って沈めなかった船
+  const fleet = [];
+  for (const [key, s] of G.fleet) {
+    const zi = ZONES.findIndex((z) => z.faction.name === s.faction.name);
+    fleet.push([key, s.type, zi, s.cap ? s.cap.ja : '', s.crewN]);
+  }
+  const data = {
+    v: 1, at: Date.now(), t: G.t, hp: G.hp, gold: G.gold, taken: [...G.taken], sunk: G.sunk, kills: G.kills, bosses: G.bosses, minX: G.minX,
+    ship: [P.x, P.z, P.h], slain: [...(G.slain || [])], guards: [...G.guards.entries()], fleet, island: island ? island.isl.id : null,
+  };
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* 保存できない */ }
+}
+function continueGame() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { d = null; }
+  if (!d) { start(); return; }
+  Object.assign(G, { t: d.t || 0, hp: Math.max(1, d.hp || G.maxHp), gold: d.gold || 0, sunk: d.sunk || 0, kills: d.kills || 0, bosses: d.bosses || 0, minX: d.minX ?? G.minX });
+  G.taken = new Set(d.taken || []);
+  G.slain = new Set(d.slain || []);
+  G.guards = new Map(d.guards || []);
+  G.fleet = new Map();
+  for (const [key, type, zi, capJa, crewN] of d.fleet || []) {
+    const z = ZONES[zi] || ZONES[1];
+    const cap = z.captains.find((c) => c.ja === capJa) || z.captains[0];
+    G.fleet.set(key, { type, cap, faction: z.faction, crewN });
+  }
+  const [x, zz, h] = d.ship;
+  sea.P.x = x; sea.P.z = zz; sea.P.h = h; sea.P.v = 0; sea.P.sail = 1;
+  if (d.island) { sea.noAuto = d.island; sea.noAutoX = x; sea.noAutoZ = zz; }
+  sea.updateChunks(true);
+  start(true);
+}
+function refreshContinue() { $('btnContinue').classList.toggle('hidden', !hasSave()); }
+
+function start(resumed) {
   $('title').classList.add('hidden');
   $('hud').classList.remove('hidden');
   G.state = 'play';
@@ -190,7 +233,8 @@ function start() {
   sea.camInit = false;
   Sfx.bgm('sea');
   Sfx.horn(0.4);
-  banner(L('姫路港より出航', 'Setting sail from Himeji'), L('追い風を受けて西へ——目指すは巌流島', 'A tailwind blows west — for Ganryūjima'));
+  if (resumed) banner(L('航海の続き', 'Voyage resumed'), L('西へ——目指すは巌流島', 'West — for Ganryūjima'));
+  else { clearSave(); banner(L('姫路港より出航', 'Setting sail from Himeji'), L('追い風を受けて西へ——目指すは巌流島', 'A tailwind blows west — for Ganryūjima')); }
   msg(L('帆を張れ！ 風は西へ吹いている。潮の流れに気をつけろ。', 'Raise the sail! The wind blows west — mind the tidal currents.'), 'sys', 5);
   setTimeout(() => msg(L('金色の光の柱が港。⚓の港に入れば自動で上陸し、財宝を奪いに行ける。', 'Golden pillars of light mark the ports. Sail into a ⚓ port to land and raid its treasure.'), 'sys', 6), 4000);
   updateHelp();
@@ -278,6 +322,7 @@ function rank(clear) {
   return L('海賊王になりそこねた男', 'The Man Who Almost Became King');
 }
 function showResult(clear) {
+  clearSave();
   G.state = 'result';
   $('hud').classList.add('hidden');
   $('result').classList.remove('hidden');
@@ -391,7 +436,7 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
   if (sea) sea.resize(); if (island) island.resize();
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) { if (G && G.state === 'play') togglePause(); Sfx.suspend(); } else Sfx.resume(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { saveGame(); if (G && G.state === 'play') togglePause(); Sfx.suspend(); } else Sfx.resume(); });
 // 電話や通知などで音が止まったときは、次に触ったときに戻す
 addEventListener('pointerdown', () => Sfx.resume(), true);
 addEventListener('touchstart', () => Sfx.resume(), { capture: true, passive: true });

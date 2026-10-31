@@ -648,7 +648,8 @@ export class Sea {
       const r = Math.random();
       const type = r < 0.12 + prog * 0.2 && zone.max >= 3 ? 'ataka' : r < 0.45 + prog * 0.2 ? 'seki' : 'kobaya';
       const n = type === 'kobaya' && Math.random() < 0.5 ? 2 : 1;
-      const cap = zone.captains[(Math.random() * zone.captains.length) | 0];
+      const alive = zone.captains.filter((c) => !(this.G.slain && this.G.slain.has(c.ja))); // 討ち取った武将の船は出てこない
+      const cap = alive.length ? alive[(Math.random() * alive.length) | 0] : { ja: zone.faction.name + 'の残党', en: 'remnants of ' + zone.faction.en, style: 'jp' };
       for (let i = 0; i < n; i++) this.spawnEnemy(type, x + i * 20, z + i * 12, zone.faction, { cap, hpMul: 1 + prog * 0.6, dmgMul: 1 + prog * 0.5 });
       if (G.t - (this.lastWarn || -99) > 20) { msg(L(`${cap.ja}の船が現れた！（${zone.faction.name}）`, `${cap.en}'s ship sighted! (${zone.faction.en})`), 'warn', 4); this.lastWarn = G.t; Sfx.horn(0.25, 0, 0.95); }
       break;
@@ -668,7 +669,8 @@ export class Sea {
       const [lon] = sea2ll(cx, cz);
       const zone = zoneAt(lon);
       if (!zone.captains.length) continue;
-      const cap = zone.captains[(Math.random() * zone.captains.length) | 0];
+      const alive = zone.captains.filter((c) => !(this.G.slain && this.G.slain.has(c.ja))); // 討ち取った武将の船は出てこない
+      const cap = alive.length ? alive[(Math.random() * alive.length) | 0] : { ja: zone.faction.name + 'の残党', en: 'remnants of ' + zone.faction.en, style: 'jp' };
       const name = islandName(isl);
       const prog = G.progress;
       let made = 0;

@@ -336,3 +336,6 @@ body.touch #minimap { width: min(44vw, 300px); height: min(31.4vw, 214px); left:
   .hud-right .route { width: 50vw; }
   .hud-left { width: 40vw; }
 }
+#btnContinue { display: block; margin: 16px auto 0; background: linear-gradient(#2a7ab0, #164a70); border-color: #a0d0f0; }
+#btnContinue.hidden { display: none; }
+#btnContinue + #btnStart { margin-top: 10px; font-size: 20px; padding: 9px 36px; }

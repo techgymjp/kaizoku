@@ -622,7 +622,12 @@ export class Island {
     const color = this.G.zoneColor || '#3a4a6a';
     let pool = [...zoneAt(this.isl.lon).captains, ...ISLAND_BOSSES];
     if (!pool.length) pool = [...ZONES[ZONES.length - 2].captains]; // 関門の島は幕末の志士
-    const cap = pool[(Math.random() * pool.length) | 0];
+    // 一度討ち取った武将は二度と出てこない。足りなければ名もなき足軽大将
+    const slain = this.G.slain || new Set();
+    pool = pool.filter((p) => !slain.has(p.ja));
+    let gen = 0;
+    const nameless = () => { gen++; const n = ['一', '二', '三', '四', '五', '六', '七'][gen - 1] || gen; return { ja: `${this.isl.name}の足軽大将 其の${n}`, en: `Ashigaru captain #${gen} of ${islandName(this.isl)}`, style: 'jp', nameless: true }; };
+    const cap = pool.length ? pool[(Math.random() * pool.length) | 0] : nameless();
     this.cap = cap;
     const boss = { name: L(`${cap.ja}（${this.isl.name}の頭目）`, `${cap.en} (boss of ${islandName(this.isl)})`), short: L(cap.ja, cap.en), hp: 230 + prog * 260, pow: 18 + prog * 10, brave: Math.random() < 0.5 + prog * 0.3 };
     this.boss = boss;
@@ -645,10 +650,10 @@ export class Island {
         if (!ok) continue;
       }
       let gcap = cap;
-      if (u > 0) { const cands = pool.filter((p) => !used.has(p.ja)); gcap = cands[(Math.random() * cands.length) | 0] || cap; used.add(gcap.ja); }
+      if (u > 0) { const cands = pool.filter((p) => !used.has(p.ja)); gcap = cands.length ? cands[(Math.random() * cands.length) | 0] : nameless(); used.add(gcap.ja); }
       const group = 'u' + u;
-      const info = u === 0 ? boss : { name: L(`${gcap.ja}の軍勢`, `${gcap.en}'s band`), short: L(gcap.ja, gcap.en), hp: boss.hp * 0.7, pow: boss.pow * 0.85, brave: Math.random() < 0.5, west: false };
-      if (u === 0) info.west = false;
+      const info = u === 0 ? boss : { name: L(`${gcap.ja}の軍勢`, `${gcap.en}'s band`), short: L(gcap.ja, gcap.en), hp: boss.hp * 0.7, pow: boss.pow * 0.85, brave: Math.random() < 0.5, west: false, capJa: gcap.ja };
+      if (u === 0) { info.west = false; info.capJa = cap.ja; }
       if (u === 0 && T.taken) continue;
       const g = place(cx, cz, 8);
       if (g) this.addEnemy('gen', g[0], g[1], color, group, info);
@@ -947,6 +952,7 @@ export class Island {
     this.blood(e.x, this.hAt(e.x, e.z) + 1, e.z, e.type === 'gen' ? 26 : 12);
     if (e.type === 'gen') {
       G.bosses++;
+      if (e.info && e.info.capJa) { if (!G.slain) G.slain = new Set(); G.slain.add(e.info.capJa); } // 二度と出てこない
       Sfx.kill(); Sfx.swell(0.7);
       this.shake = 0.5; this.hitstop = 0.18;
       this.addPickup(e.x, e.z, K.genHeal, true);

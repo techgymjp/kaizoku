@@ -1271,16 +1271,27 @@ export class Island {
     PPOS.value.set(P.x, P.y, P.z);
   }
 
+  // カメラからその場所が見えるか（途中の地面や家にさえぎられていないか）
+  seen(x, y, z) {
+    const c = this.camera.position, n = 16;
+    for (let i = 1; i < n; i++) {
+      const t = i / n, px = c.x + (x - c.x) * t, py = c.y + (y - c.y) * t, pz = c.z + (z - c.z) * t;
+      if (this.hAt(px, pz) > py + 0.3) return false;
+      if (t > 0.15 && t < 0.9) for (const b of this.bgrid(px, pz)) if (insideOBB(b, px, pz, 0) && py < this.hAt(b.cx, b.cz) + 6) return false;
+    }
+    return true;
+  }
   render(dt) {
     this.r.render(this.scene, this.camera);
     this.floats.update(dt, this.camera);
     this.tags.begin();
-    for (const e of this.enemies) if (e.alive && e.type === 'gen') this.tags.put(this.camera, e.x, this.hAt(e.x, e.z) + 3.4, e.z, '▼', null, 'mk boss');
+    // 敵の印は、カメラから見えている（山や家の陰でない）近くの敵だけに付ける
+    for (const e of this.enemies) if (e.alive && e.type === 'gen' && hypot(e.x - this.P.x, e.z - this.P.z) < 90 && this.seen(e.x, this.hAt(e.x, e.z) + 1.5, e.z)) this.tags.put(this.camera, e.x, this.hAt(e.x, e.z) + 3.4, e.z, '▼', null, 'mk boss');
     // 攻めてくる足軽の頭上に小さな印（近い 14 人）
     const P = this.P, near = [];
     for (const e of this.enemies) if (e.alive && e.type !== 'gen' && e.state === 'chase') { const d = hypot(e.x - P.x, e.z - P.z); if (d < 60) near.push([d, e]); }
     near.sort((p, q) => p[0] - q[0]);
-    for (const [, e] of near.slice(0, 14)) this.tags.put(this.camera, e.x, this.hAt(e.x, e.z) + 2.4, e.z, e.type === 'gun' ? '▼鉄砲' : '▼', null, 'mk' + (e.type === 'gun' ? ' gun' : ''));
+    for (const [, e] of near.filter(([, e]) => this.seen(e.x, this.hAt(e.x, e.z) + 1.2, e.z)).slice(0, 14)) this.tags.put(this.camera, e.x, this.hAt(e.x, e.z) + 2.4, e.z, e.type === 'gun' ? '▼鉄砲' : '▼', null, 'mk' + (e.type === 'gun' ? ' gun' : ''));
     const T = this.treasure;
     if (!T.taken) this.tags.put(this.camera, T.x, this.hAt(T.x, T.z) + 3, T.z, '★', null, 'mk gold');
     else this.tags.put(this.camera, this.ship.x, 9, this.ship.z, '⚓', null, 'mk ship');

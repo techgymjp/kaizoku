@@ -117,6 +117,11 @@
   </div>
 </div>
 
-<script type="module" src="js/main.js?v=35801"></script>
+<script>
+  // 公開した版の番号（version.txt）を毎回確かめてから読み込む。古いファイルが残らないように
+  fetch('version.txt', { cache: 'no-store' }).then((r) => (r.ok ? r.text() : '')).catch(() => '').then((v) => {
+    const s = document.createElement('script'); s.type = 'module'; s.src = 'js/main.js?v=' + (v.trim() || Date.now()); document.body.appendChild(s);
+  });
+</script>
 </body>
 </html>

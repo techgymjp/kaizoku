@@ -663,13 +663,14 @@ export class Island {
   placeTreasure(px, pz) {
     const G = this.G;
     const cands = [];
-    for (const s of this.shrines) if (this.canWalkLoose(s.x, s.z)) cands.push({ x: s.x, z: s.z, w: s.kind === 'shrine' ? 3 : 2, name: s.name || (s.kind === 'shrine' ? L('島の神社', 'island shrine') : L('島の寺', 'island temple')) });
+    for (const s of this.shrines) if (this.canWalkLoose(s.x, s.z) && hypot(s.x - px, s.z - pz) <= 420) cands.push({ x: s.x, z: s.z, w: s.kind === 'shrine' ? 3 : 2, name: s.name || (s.kind === 'shrine' ? L('島の神社', 'island shrine') : L('島の寺', 'island temple')) });
     // 高いところ
     let hi = null, hh = -1;
     for (let k = 0; k < 4000; k++) {
       const x = rand(-this.size / 2, this.size / 2), z = rand(-this.size / 2, this.size / 2);
       if (!this.canWalkLoose(x, z)) continue;
       const d = hypot(x - px, z - pz); if (d < 200 || d > 400) continue;
+      if (this.inBuilding(x, z)) continue;
       const h = this.hAt(x, z); if (h > hh) { hh = h; hi = { x, z, w: 1, name: L('島の高台', 'hilltop') }; }
     }
     if (hi) cands.push(hi);
@@ -680,8 +681,8 @@ export class Island {
       if (s > bs) { bs = s; best = c; }
     }
     if (!best) {
-      // 何も無ければ上陸地点から内陸へ
-      for (let k = 0; k < 400 && !best; k++) { const a = rand(0, TAU), d = rand(60, 200); const x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d; if (this.canWalkLoose(x, z)) best = { x, z, name: L('島の奥', 'inland') }; }
+      // 何も無ければ上陸地点から内陸へ（できるだけ 300m 前後）
+      for (let k = 0; k < 800 && !best; k++) { const a = rand(0, TAU), d = k < 400 ? rand(200, 400) : rand(60, 200); const x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d; if (this.canWalkLoose(x, z)) best = { x, z, name: L('島の奥', 'inland') }; }
       if (!best) best = { x: px, z: pz, name: L('浜', 'beach') };
     }
     // 建物に埋まらないよう少しずらす

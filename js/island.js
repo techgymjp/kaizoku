@@ -309,6 +309,7 @@ export class Island {
     this.buildBuildings();
     this.buildShrines();
     this.buildLandmarks();
+    this.buildFarms(cx0Hint(this, start, lx, lz));
     this.buildTrees();
     // 船（実寸）
     const ship = makeShip('player');
@@ -548,6 +549,80 @@ export class Island {
     }
   }
 
+  // ---- 段々畑・みかん畑・田んぼ・野菜畑・干物 ----
+  farmAt(x, z) { return this.farm && this.farm.has(((x / 10) | 0) + ',' + ((z / 10) | 0)); }
+  buildFarms(port) {
+    const half = this.size / 2, S = 10;
+    this.farm = new Set();
+    const tex = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 64; draw(c.getContext('2d')); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter; return t; };
+    const stone = new THREE.MeshLambertMaterial({ map: tex((g) => { g.fillStyle = '#8a8478'; g.fillRect(0, 0, 64, 64); for (let i = 0; i < 40; i++) { g.fillStyle = ['#a09a8c', '#6e695f', '#948d80'][i % 3]; g.fillRect((i * 23) % 60, ((i * 37) % 60), 10 + (i % 3) * 3, 6); } }) });
+    const rows = (bg, fg, n) => tex((g) => { g.fillStyle = bg; g.fillRect(0, 0, 64, 64); g.fillStyle = fg; for (let i = 0; i < n; i++) g.fillRect(2, 3 + i * (60 / n), 60, 60 / n / 2); });
+    const terraceTop = [rows('#6a4e2e', '#4f8a3a', 6), rows('#7a5a34', '#9ab04a', 8), rows('#6a4e2e', '#3e6e2e', 5)].map((m) => new THREE.MeshLambertMaterial({ map: m }));
+    const paddyM = new THREE.MeshPhongMaterial({ map: tex((g) => { g.fillStyle = '#5a8a7a'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#7ab04a'; for (let y = 4; y < 64; y += 6) for (let x = 4; x < 64; x += 6) g.fillRect(x, y, 2, 3); g.strokeStyle = '#8a7a50'; g.lineWidth = 4; g.strokeRect(0, 0, 64, 64); }), shininess: 20, specular: '#304040' });
+    const vegM = new THREE.MeshLambertMaterial({ map: rows('#6e4a2a', '#5aa040', 7) });
+    const dirt = new THREE.MeshLambertMaterial({ color: '#6a5034' });
+    // 場所を選ぶ
+    const terr = [[], [], []], paddy = [], veg = [], mikan = [];
+    const nearHouse = (x, z) => this.bgrid(x, z).some((b) => Math.hypot(b.cx - x, b.cz - z) < 45);
+    for (let z = -half + S; z < half - S; z += S) for (let x = -half + S; x < half - S; x += S) {
+      const h = this.hAt(x, z); if (h < 0.6) continue;
+      if (this.bgrid(x, z).some((b) => insideOBB(b, x, z, 2))) continue;
+      if (port && Math.hypot(x - port[0], z - port[1]) < 45) continue; // 港のまわりは空けておく
+      const gx = (this.hAt(x + 4, z) - this.hAt(x - 4, z)) / 8, gz = (this.hAt(x, z + 4) - this.hAt(x, z - 4)) / 8;
+      const sl = Math.hypot(gx, gz);
+      const n = hash2(x * 0.37, z * 0.53);
+      let kind = null;
+      if (sl > 0.1 && sl < 0.75 && h > 3 && h < 220 && n < 0.8) kind = 'terrace'; // 山あいは段々畑
+      else if (sl < 0.05 && h < 20 && h > 0.8 && n < 0.75) kind = nearHouse(x, z) && n < 0.4 ? 'veg' : 'paddy';
+      else if (sl < 0.1 && h < 60 && nearHouse(x, z) && n < 0.6) kind = 'veg';
+      if (!kind) continue;
+      this.farm.add(((x / 10) | 0) + ',' + ((z / 10) | 0));
+      const ang = Math.atan2(gx, gz);
+      if (kind === 'terrace') {
+        const step = 1.8, top = Math.ceil(h / step) * step;
+        const t = (n * 3) | 0; terr[t].push([x, top, z, ang]);
+        if (t === 2 && n < 0.35) mikan.push([x, top, z, ang]); // みかん畑
+      } else if (kind === 'paddy') paddy.push([x, h, z, ang]);
+      else veg.push([x, h, z, ang]);
+      if (terr[0].length + terr[1].length + terr[2].length + paddy.length + veg.length > 6000) break;
+    }
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    const place = (list, geo, mats, fn) => {
+      if (!list.length) return;
+      const im = new THREE.InstancedMesh(geo, mats, list.length);
+      list.forEach((v, i) => { fn(v); m4.compose(p, q, sc); im.setMatrixAt(i, m4); });
+      this.scene.add(im);
+    };
+    // 段々畑：上は作物の列、前は石垣。下へ伸ばして段に見せる
+    const tb = new THREE.BoxGeometry(1, 1, 1); tb.translate(0, -0.5, 0);
+    terr.forEach((list, t) => place(list, tb, [stone, stone, terraceTop[t], dirt, stone, stone], ([x, top, z, ang]) => { p.set(x, top + 0.15, z); q.setFromAxisAngle(up, ang); sc.set(S + 0.6, 3.2, S + 0.6); }));
+    // みかんの木
+    const mk = new THREE.IcosahedronGeometry(1.1, 0); mk.translate(0, 1.4, 0);
+    const mkM = new THREE.MeshLambertMaterial({ map: tex((g) => { g.fillStyle = '#2e5a2a'; g.fillRect(0, 0, 64, 64); g.fillStyle = '#f0901a'; for (let i = 0; i < 14; i++) { g.beginPath(); g.arc((i * 29) % 60 + 2, (i * 41) % 60 + 2, 3, 0, 7); g.fill(); } }) });
+    const trees = []; for (const [x, top, z, ang] of mikan) for (const o of [-3, 0, 3]) trees.push([x + Math.cos(ang) * o, top, z - Math.sin(ang) * o]);
+    place(trees, mk, mkM, ([x, y, z]) => { p.set(x, y + 0.1, z); q.identity(); sc.set(1, 1, 1); });
+    // 田んぼ（水が張ってある）と野菜畑
+    const pb = new THREE.BoxGeometry(1, 0.3, 1);
+    place(paddy, pb, [dirt, dirt, paddyM, dirt, dirt, dirt], ([x, h, z, ang]) => { p.set(x, h + 0.1, z); q.setFromAxisAngle(up, ang); sc.set(S - 0.4, 1, S - 0.4); });
+    place(veg, pb, [dirt, dirt, vegM, dirt, dirt, dirt], ([x, h, z, ang]) => { p.set(x, h + 0.12, z); q.setFromAxisAngle(up, ang); sc.set(S - 1, 1, S - 1); });
+    // 港の近くに干物を干す棚
+    if (port) {
+      const wood = mat('#6a4a2c'), fish = new THREE.MeshLambertMaterial({ color: '#b8a888' });
+      let made = 0;
+      for (let k = 0; k < 60 && made < 6; k++) {
+        const a = k * 0.9, d = 12 + k * 1.5;
+        const x = port[0] + Math.cos(a) * d, z = port[1] + Math.sin(a) * d, h = this.hAt(x, z);
+        if (h < 0.4 || h > 12 || this.bgrid(x, z).some((b) => insideOBB(b, x, z, 2))) continue;
+        const g = new THREE.Group();
+        for (const sx of [-2, 2]) for (const sz of [-0.6, 0.6]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.4, 0.1), wood); post.position.set(sx, 0.7, sz); g.add(post); }
+        for (const sz of [-0.6, 0, 0.6]) { const bar = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.06, 0.06), wood); bar.position.set(0, 1.35, sz); g.add(bar); }
+        // 網の上に並べた干物
+        const net = new THREE.Mesh(new THREE.BoxGeometry(4, 0.03, 1.3), new THREE.MeshLambertMaterial({ color: '#4a5a3a', transparent: true, opacity: 0.6 })); net.position.y = 1.38; g.add(net);
+        for (let i = 0; i < 18; i++) { const f = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.04, 0.14), fish); f.position.set(-1.8 + (i % 9) * 0.45, 1.42, i < 9 ? -0.35 : 0.35); f.rotation.y = 0.2; g.add(f); }
+        g.position.set(x, h, z); g.rotation.y = a; this.scene.add(g); made++;
+      }
+    }
+  }
   // ---- 木（写真の緑の濃いところに松を立てる） ----
   buildTrees() {
     const W = this.photo.width;
@@ -565,6 +640,7 @@ export class Island {
       const green = g > r * 1.05 && g > b * 1.0 && r + g + b < 330;
       if (!green) continue;
       if (this.bgrid(xx, zz).some((ob) => insideOBB(ob, xx, zz, 3))) continue;
+      if (this.farmAt(xx, zz)) continue; // 畑や田んぼには木を立てない
       spots.push([xx, h, zz, r + g + b]);
       if (spots.length > 7000) break;
     }
@@ -1242,6 +1318,8 @@ export class Island {
   }
 }
 
+// 港（上陸地点）の位置
+function cx0Hint(self, start, lx, lz) { if (start < 0) return [lx, lz]; return self.cellPos(start % self.N, (start / self.N) | 0); }
 // ---- 図形の小道具 ----
 function hash2(x, z) { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); }
 // 多角形を囲む最小の長方形（向き付き）。辺の向きをすべて試す

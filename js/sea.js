@@ -376,6 +376,8 @@ export class Sea {
       const cx = (best.lx + 0.5 + best.ox * 0.5) * SEA_K, cz = (best.ly + 0.5 + best.oy * 0.5) * SEA_K;
       port.position.set(cx, 0.2, cz); port.rotation.y = Math.atan2(best.ox, best.oy);
       this.scene.add(port);
+      // 光の柱は漁港の中（防波堤に囲まれた所）に立てる
+      isl.harbor.x = cx + best.ox * 6; isl.harbor.z = cz + best.oy * 6;
       const beam = new THREE.Mesh(beamGeo, this.beamMat);
       beam.position.set(isl.harbor.x, 80, isl.harbor.z); beam.visible = false;
       this.scene.add(beam); isl.harbor.beam = beam;

@@ -610,7 +610,7 @@ export class Island {
       const wood = mat('#6a4a2c'), fish = new THREE.MeshLambertMaterial({ color: '#b8a888' });
       let made = 0;
       for (let k = 0; k < 60 && made < 6; k++) {
-        const a = k * 0.9, d = 12 + k * 1.5;
+        const a = k * 0.9, d = 28 + k * 1.5;
         const x = port[0] + Math.cos(a) * d, z = port[1] + Math.sin(a) * d, h = this.hAt(x, z);
         if (h < 0.4 || h > 12 || this.bgrid(x, z).some((b) => insideOBB(b, x, z, 2))) continue;
         const g = new THREE.Group();

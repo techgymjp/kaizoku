@@ -250,7 +250,7 @@ export class Island {
     const N = this.N, half = this.size / 2;
     const i = Math.round((x + half) / this.cell), j = Math.round((z + half) / this.cell);
     if (i < 1 || j < 1 || i >= N - 1 || j >= N - 1) return false;
-    if (!this.walk[j * N + i]) return false;
+    // 海は泳げる・向こうの陸にも渡れる（範囲の端と建物だけは通れない）
     for (const b of this.bgrid(x, z)) if (insideOBB(b, x, z, 0.35)) return false;
     return true;
   }
@@ -794,7 +794,7 @@ export class Island {
     }
     const base = K.walk * (P.dashing ? 1.6 + Math.min(1.0, P.dashT * 0.5) : 1) * (P.atk && P.atk.type === 'spear' && !P.atk.charge ? 0.55 : 1);
     if (ml > 0) {
-      const tf = this.slopeFactor(P.x, P.z, mx / ml, mz / ml);
+      const tf = this.slopeFactor(P.x, P.z, mx / ml, mz / ml) * (this.hAt(P.x, P.z) < -0.3 ? 0.55 : 1); // 泳ぐと遅い
       const k = 1 - Math.exp(-dt * (P.dashing ? 9 : 12));
       P.vx += (mx * base * tf - P.vx) * k; P.vz += (mz * base * tf - P.vz) * k;
     } else { const k = 1 - Math.exp(-dt * 8); P.vx -= P.vx * k; P.vz -= P.vz * k; }
@@ -805,7 +805,9 @@ export class Island {
     else if (this.canWalk(P.x, nz)) { P.z = nz; P.vx *= 0.5; }
     else { P.vx *= 0.3; P.vz *= 0.3; }
     const py = this.onPlank(P.x, P.z);
-    P.y = py !== null ? Math.max(py, this.hAt(P.x, P.z)) : Math.max(this.hAt(P.x, P.z), -0.6);
+    P.y = py !== null ? Math.max(py, this.hAt(P.x, P.z)) : Math.max(this.hAt(P.x, P.z), -1.0);
+    P.swim = py === null && this.hAt(P.x, P.z) < -0.3;
+    if (P.swim && hypot(P.vx, P.vz) > 1 && Math.random() < 0.4) this.sprite('#e8f4ff', P.x + rand(-0.5, 0.5), 0.1, P.z + rand(-0.5, 0.5), rand(0.4, 0.8), 0.6, rand(-1, 1), rand(0.5, 1.5), rand(-1, 1), 1.2);
     const sp = hypot(P.vx, P.vz);
     P.gait += sp * dt * 1.0;
     if (sp > 3) { P.stepT -= dt; if (P.stepT <= 0) { P.stepT = P.dashing ? 0.18 : 0.3; Sfx.gallop(); if (P.dashing) this.dust(P.x, P.z, 1); } }
@@ -969,7 +971,7 @@ export class Island {
     const dx = P.x - e.x, dz = P.z - e.z, d = hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
     let moving = false, atkPose = null;
     const move = (mx, mz, spd) => {
-      const tf = this.slopeFactor(e.x, e.z, mx, mz);
+      const tf = this.slopeFactor(e.x, e.z, mx, mz) * (this.hAt(e.x, e.z) < -0.3 ? 0.5 : 1);
       const nx = e.x + mx * spd * tf * dt, nz = e.z + mz * spd * tf * dt;
       if (this.canWalk(nx, nz)) { e.x = nx; e.z = nz; }
       else if (this.canWalk(nx, e.z)) e.x = nx; else if (this.canWalk(e.x, nz)) e.z = nz;

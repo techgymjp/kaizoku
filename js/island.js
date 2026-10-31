@@ -1204,13 +1204,14 @@ export class Island {
     const sx = (P.x - span / 2 + half) * pw, sy = (P.z - span * H / W / 2 + half) * pw;
     g.drawImage(this.photo, sx, sy, span * pw, span * H / W * pw, 0, 0, W, H);
     const tx = (x) => (x - P.x) * s + W / 2, ty = (z) => (z - P.z) * s + H / 2;
-    for (const e of this.enemies) if (e.alive) { g.fillStyle = e.type === 'gen' ? '#ff3a3a' : '#ff9a7a'; g.fillRect(tx(e.x) - 2.5, ty(e.z) - 2.5, 5, 5); }
+    g.strokeStyle = '#000'; g.lineWidth = 2;
+    for (const e of this.enemies) if (e.alive) { g.fillStyle = e.type === 'gen' ? '#ff1a1a' : '#ff4a3a'; g.beginPath(); g.arc(tx(e.x), ty(e.z), e.type === 'gen' ? 9 : 5.5, 0, TAU); g.fill(); g.stroke(); }
     const T = this.treasure;
     const clampP = (x, y) => [Math.max(6, Math.min(W - 6, x)), Math.max(6, Math.min(H - 6, y))];
     if (!T.taken) { const [x, y] = clampP(tx(T.x), ty(T.z)); g.fillStyle = '#ffd24a'; g.beginPath(); g.arc(x, y, 5, 0, TAU); g.fill(); }
-    { const [x, y] = clampP(tx(this.ship.x), ty(this.ship.z)); g.fillStyle = '#ffffff'; g.fillRect(x - 4, y - 3, 8, 6); }
-    g.save(); g.translate(W / 2, H / 2); g.rotate(P.face);
-    g.fillStyle = '#ff3a2a'; g.beginPath(); g.moveTo(7, 0); g.lineTo(-5, -4.5); g.lineTo(-3, 0); g.lineTo(-5, 4.5); g.closePath(); g.fill();
+    { const [x, y] = clampP(tx(this.ship.x), ty(this.ship.z)); g.fillStyle = '#ffffff'; g.strokeStyle = '#000'; g.lineWidth = 2; g.fillRect(x - 8, y - 5, 16, 10); g.strokeRect(x - 8, y - 5, 16, 10); }
+    g.save(); g.translate(W / 2, H / 2); g.rotate(P.heading ?? P.face);
+    g.fillStyle = '#ffe14d'; g.strokeStyle = '#000'; g.lineWidth = 3; g.beginPath(); g.moveTo(20, 0); g.lineTo(-12, -12); g.lineTo(-5, 0); g.lineTo(-12, 12); g.closePath(); g.stroke(); g.fill();
     g.restore();
   }
   resize() { this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix(); }

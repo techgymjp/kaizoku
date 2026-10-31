@@ -534,14 +534,14 @@ export class Sea {
       const nm = islandName(isl); g.strokeText(nm, x + 7, y + 4); g.fillText(nm, x + 7, y + 4);
       if (!taken && isl.harbor) { const hx = tx(isl.harbor.x), hy = ty(isl.harbor.z); g.font = '700 15px serif'; g.lineWidth = 3; g.strokeText('⚓', hx - 7, hy + 6); g.fillStyle = '#ffd24a'; g.fillText('⚓', hx - 7, hy + 6); }
     }
-    for (const e of this.enemies) { if (e.sink || e.far) continue; g.fillStyle = e.boss ? '#ff3a3a' : e.guard && !e.pursue ? '#ffb0a0' : '#ff6a4a'; g.fillRect(tx(e.x) - 3, ty(e.z) - 3, 6, 6); }
+    for (const e of this.enemies) { if (e.sink || e.far) continue; g.fillStyle = e.boss ? '#ff1a1a' : e.guard && !e.pursue ? '#ff9a80' : '#ff3a2a'; g.strokeStyle = '#000'; g.lineWidth = 2; g.beginPath(); g.arc(tx(e.x), ty(e.z), e.boss ? 9 : 6.5, 0, TAU); g.fill(); g.stroke(); }
     // ゴール
     g.fillStyle = '#ffffff'; g.font = '700 11px serif';
     const gx = tx(this.goal.x), gy = ty(this.goal.z);
     if (gx > 0 && gx < W && gy > 0 && gy < H) { g.fillText(L('★巌流島', '★Ganryūjima'), gx - 6, gy + 4); }
     // 自船
     g.save(); g.translate(tx(P.x), ty(P.z)); g.rotate(P.h);
-    g.fillStyle = '#ff3a2a'; g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(11, 0); g.lineTo(-7, -6); g.lineTo(-3, 0); g.lineTo(-7, 6); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = '#ffe14d'; g.strokeStyle = '#000'; g.lineWidth = 3; g.beginPath(); g.moveTo(20, 0); g.lineTo(-12, -12); g.lineTo(-5, 0); g.lineTo(-12, 12); g.closePath(); g.stroke(); g.fill();
     g.restore();
     g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(W - 26, 4, 22, 22); g.fillStyle = '#fff'; g.font = '700 13px serif'; g.fillText(L('北', 'N'), W - 21, 20);
     const km5 = 500 / SEA_K * k; g.fillStyle = '#fff'; g.fillRect(8, H - 10, km5, 3); g.font = '11px serif'; g.fillText('5km', 8, H - 14);

@@ -19,6 +19,7 @@ export const Sfx = (() => {
     bgmBus = ac.createGain(); bgmBus.gain.value = 0.75; bgmBus.connect(master);
     makeReverb();
     if (bgm.mode) { const m = bgm.mode; bgm.mode = null; setBgm(m); }
+    setTimeout(renderAll, 300);
   }
 
   // 兵士たちの「ワー」という鬨の声（ノイズ＋声のフォルマント）
@@ -35,7 +36,7 @@ export const Sfx = (() => {
     const vg = ac.createGain(); vg.gain.value = 1.6;
     f1.connect(vg); f2.connect(vg); vg.connect(out);
     const voices = [];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 6; i++) {
       const base = 130 + Math.random() * 190;
       const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.value = base;
       const lfo = ac.createOscillator(); lfo.frequency.value = 3 + Math.random() * 4;
@@ -235,18 +236,10 @@ export const Sfx = (() => {
         [24, 86, 2], [26, 83, 1], [27, 79, 3], [30, 81, 2], [32, 78, 1], [33, 74, 3], [36, 76, 2], [38, 78, 1], [39, 79, 2], [41, 85, 1], [42, 86, 6]] },
   };
   let bgmBus = null, bgm = { mode: null, next: 0, step: 0, timer: null };
-  function bgmTick() {
-    try { bgmStep(); } catch (e) { if (bgm.mode && ac) { bgm.next = ac.currentTime + 0.2; bgm.step++; } }
-  }
-  function bgmStep() {
-    if (!ac || !bgm.mode) return;
-    const S = SONGS[bgm.mode];
-    const e8 = 60 / S.dq / 3; // 8分音符の長さ
-    const total = S.bars.length * 6;
-    if (bgm.next < ac.currentTime + 0.02) { const skip = Math.ceil((ac.currentTime - bgm.next) / e8); bgm.step += skip; bgm.next += skip * e8; }
-    while (bgm.next < ac.currentTime + 1.2) {
-      const w = Math.max(0, bgm.next - ac.currentTime);
-      const i = bgm.step % total, bar = (i / 6) | 0, pos = i % 6;
+  // 1 拍（8分音符）ぶんの音を w 秒後に鳴らす
+  function scheduleStep(S, i, w, e8) {
+      const total = S.bars.length * 6;
+      const bar = ((i % total) / 6) | 0, pos = i % 6;
       const chord = CH[S.bars[bar]];
       const root = chord[0] - (chord[0] > 47 ? 12 : 0);
       // 低音の刻み（タタタ・タタタ）
@@ -279,22 +272,79 @@ export const Sfx = (() => {
       else if (D === 'doom') { if (pos === 0) timpani(38, w, 0.38); if (pos === 3 && bar % 2 === 1) for (let k = 0; k < 3; k++) timpani(38, w + k * e8 / 3, 0.15); }
       else if (D === 'title') { if (pos === 0 && bar % 2 === 0) timpani(38, w, 0.25); }
       // 旋律（金管）
-      for (const [p, m, len] of S.mel) if (p === i) {
+      for (const [p, m, len] of S.mel) if (p === i % total) {
         brass(m, w, e8 * len * 0.95, S.drums === 'battle' ? 0.075 : 0.065, S.drums === 'doom' ? 0.7 : 1);
         if (S.drums === 'battle' || S.drums === 'doom' || S.double) brass(m - 12, w, e8 * len * 0.95, S.double ? 0.05 : 0.04, 0.6); // 低い金管で重ねる
         if (S.double) strings(m + 12, w, e8 * len * 0.9, 0.022, true); // 高い弦も同じ旋律
       }
+  }
+  // ---- 曲は最初に音のファイル（AudioBuffer）に書き出しておき、それを繰り返し鳴らす ----
+  // その場で何百もの音を作り続けるとスマホでは処理が追いつかず途切れるため
+  const rendered = {}, rendering = {};
+  async function renderSong(mode) {
+    if (rendered[mode] || rendering[mode]) return rendering[mode];
+    const S = SONGS[mode], e8 = 60 / S.dq / 3, total = S.bars.length * 6, loop = total * e8, tail = 2.5;
+    const sr = 32000;
+    const off = new OfflineAudioContext(2, Math.ceil((loop + tail) * sr), sr);
+    rendering[mode] = (async () => {
+      const keep = { ac, bgmBus, revIn, master };
+      ac = off; master = off.destination;
+      bgmBus = off.createGain(); bgmBus.gain.value = 1; bgmBus.connect(off.destination);
+      makeReverb();
+      for (let i = 0; i < total; i++) scheduleStep(S, i, i * e8 + 0.01, e8);
+      ({ ac, bgmBus, revIn, master } = keep);
+      const buf = await off.startRendering();
+      // 終わりの余韻を頭に重ねて、つなぎ目なく繰り返せるように
+      const n = Math.floor(loop * sr), tl = buf.length - n;
+      const out = new AudioBuffer({ numberOfChannels: 2, length: n, sampleRate: sr });
+      for (let c = 0; c < 2; c++) { const src = buf.getChannelData(c), dst = out.getChannelData(c); dst.set(src.subarray(0, n)); for (let k = 0; k < tl && k < n; k++) dst[k] += src[n + k]; }
+      rendered[mode] = out;
+      return out;
+    })();
+    return rendering[mode];
+  }
+  let player = null;
+  function playRendered(mode) {
+    const buf = rendered[mode]; if (!buf || !ac) return false;
+    const t = ac.currentTime;
+    if (player) { const p = player; p.g.gain.setTargetAtTime(0.0001, t, 0.4); setTimeout(() => { try { p.src.stop(); } catch (e) { /* もう止まっている */ } }, 2500); }
+    const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+    const g = ac.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1, t + 0.8);
+    src.connect(g); g.connect(bgmBus); src.start(t + 0.05);
+    player = { src, g, mode };
+    return true;
+  }
+  function stopRendered() { if (player && ac) { const p = player; p.g.gain.setTargetAtTime(0.0001, ac.currentTime, 0.3); setTimeout(() => { try { p.src.stop(); } catch (e) { /* もう止まっている */ } }, 1500); player = null; } }
+  // 使う順に、あらかじめ全部書き出しておく
+  async function renderAll() { for (const m of ['title', 'sea', 'battle', 'island', 'final', 'clear']) { try { await renderSong(m); } catch (e) { /* 書き出せない端末では、その場で鳴らす */ } await new Promise((r) => setTimeout(r, 50)); } }
+  function bgmTick() {
+    if (player) return; // 書き出した曲を鳴らしている
+    try { bgmStep(); } catch (e) { if (bgm.mode && ac) { bgm.next = ac.currentTime + 0.2; bgm.step++; } }
+  }
+  function bgmStep() {
+    if (!ac || !bgm.mode) return;
+    const S = SONGS[bgm.mode];
+    const e8 = 60 / S.dq / 3; // 8分音符の長さ
+    if (bgm.next < ac.currentTime + 0.02) { const skip = Math.ceil((ac.currentTime - bgm.next) / e8); bgm.step += skip; bgm.next += skip * e8; }
+    while (bgm.next < ac.currentTime + 1.2) {
+      scheduleStep(S, bgm.step, Math.max(0, bgm.next - ac.currentTime), e8);
       bgm.next += e8; bgm.step++;
     }
   }
   function setBgm(mode) {
     if (!ac) { bgm.mode = mode; return; }
-    if (bgm.mode === mode && bgm.timer) return;
+    if (bgm.mode === mode && (bgm.timer || player)) return;
     // 航海と海戦の曲が行ったり来たりしないよう、切り替えは 10 秒に 1 回まで
     const calm = (m) => m === 'sea' || m === 'battle';
     if (calm(mode) && calm(bgm.mode) && ac.currentTime - (bgm.switchedAt || -99) < 10) return;
     bgm.switchedAt = ac.currentTime;
     bgm.mode = mode; bgm.step = 0; bgm.next = ac.currentTime + 0.3;
+    if (rendered[mode]) playRendered(mode);
+    else {
+      stopRendered();
+      // 書き出しが終わったら、書き出した曲に切り替える
+      renderSong(mode).then(() => { if (bgm.mode === mode && (!player || player.mode !== mode)) playRendered(mode); }).catch(() => {});
+    }
     if (!bgm.timer) bgm.timer = setInterval(bgmTick, 200);
     if (mode === 'final') setTimeout(() => api.horn(0.4, 0, 0.8, [0.8, 0.8, 2.2]), 400);
   }
@@ -374,6 +424,7 @@ export const Sfx = (() => {
     dirge() { [0, 0.6, 1.2].forEach((w, i) => tone([220, 196, 147][i], 0.9, 0.18, 'triangle', 1, w)); },
     bgm: setBgm,
     get bgmMode() { return bgm.mode; },
+    get bgmInfo() { return (player ? 'file' : 'live') + ' rendered=' + Object.keys(rendered).join(','); },
     sea(level) { if (waves) waves.gain.setTargetAtTime(level, ac.currentTime, 0.6); },
     cannon(vol = 0.6) { noise(0.8, 180, 0.7, vol, 'lowpass'); tone(60, 0.5, vol * 0.7, 'sine', 0.5); noise(0.08, 2400, 1, vol * 0.5); },
     splash(vol = 0.4) { noise(0.5, 1200, 0.6, vol, 'bandpass'); noise(0.9, 400, 0.5, vol * 0.6, 'lowpass', 0.05); },

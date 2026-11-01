@@ -1174,13 +1174,13 @@ export class Sea {
         this.tracerE = new THREE.MeshBasicMaterial({ color: '#ff5a3a', transparent: true, opacity: 0.85, depthWrite: false, fog: false }); }
       m = new THREE.Group();
       const head = new THREE.Mesh(this.bulletGeo, from === 'p' ? this.tracerP : this.tracerE); head.scale.setScalar(1.1); m.add(head);
-      const tail = new THREE.Mesh(this.tracerGeo, from === 'p' ? this.tracerP : this.tracerE); m.add(tail);
+      const tail = new THREE.Mesh(this.tracerGeo, from === 'p' ? this.tracerP : this.tracerE); tail.scale.z = 0.01; m.add(tail); m.userData.tail = tail;
       m.lookAt(x + vx, y + vy, z + vz);
     } else m = new THREE.Mesh(this.bulletGeo, this.bombMat);
     m.position.set(x, y, z);
     if (from === 'bomb') m.scale.setScalar(2);
     this.scene.add(m);
-    const b = { m, x, y, z, vx, vy, vz, from, dmg, life };
+    const b = { m, x, y, z, vx, vy, vz, from, dmg, life, x0: x, z0: z };
     this.bullets.push(b);
     return b;
   }
@@ -1193,7 +1193,11 @@ export class Sea {
       else if (b.g) { b.vy -= b.g * dt; b.y += b.vy * dt; if (b.y < 0) { b.life = 0; this.splashAt(b.x, b.z, 0.6); } }
       else b.y = Math.max(0.6, b.y - dt * 0.4);
       b.m.position.set(b.x, b.y, b.z);
-      if (b.from === 'p' || b.from === 'e') b.m.lookAt(b.x + b.vx, b.y + b.vy, b.z + b.vz);
+      if (b.from === 'p' || b.from === 'e') {
+        b.m.lookAt(b.x + b.vx, b.y + b.vy, b.z + b.vz);
+        // 光の筋は銃口から伸びていく（銃口より後ろには出さない）
+        const tl = b.m.userData.tail; if (tl) tl.scale.z = Math.max(0.01, Math.min(1, Math.hypot(b.x - b.x0, b.z - b.z0) / 26));
+      }
       if (b.from === 'bomb') {
         if (b.y <= 0.2) {
           b.life = 0;

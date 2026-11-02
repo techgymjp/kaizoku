@@ -1140,12 +1140,14 @@ export class Sea {
     // 正面に敵がいれば、砲手がその距離に仰角を合わせる
     const fe = this.front && !this.front.e.sink ? this.front.e : null;
     const d = fe ? clamp(Math.hypot(fe.x - mz.x, fe.z - mz.z) + (Math.cos(fe.h) * Math.cos(P.h) + Math.sin(fe.h) * Math.sin(fe.h === undefined ? 0 : P.h)) * fe.v * 0.8, 30, 300) : 180;
-    const T = 0.7 + d / 220;
-    const vx = Math.cos(P.h) * d / T, vz = Math.sin(P.h) * d / T;
+    // 船が速く走っていても砲弾が船より前へ飛ぶよう、横の速さは船の速さより必ず速くする
+    const hv = Math.max(d / (0.7 + d / 220), Math.max(0, P.v) + 70), T = d / hv;
+    const vx = Math.cos(P.h) * hv, vz = Math.sin(P.h) * hv;
     const vy = (0.5 * 40 * T * T - mz.y) / T;
     this.addBullet(mz.x, mz.y, mz.z, vx, vy, vz, 'bomb', 70, T + 0.5);
-    this.muzzleFire(mz, P.h); this.muzzleFire(mz, P.h);
-    this.smoke(mz.x, mz.y + 1, mz.z, 6, '#d8d8d8');
+    const cv = this.shipVel();
+    this.muzzleFire(mz, P.h, cv); this.muzzleFire(mz, P.h, cv);
+    for (let i = 0; i < 6; i++) this.sprite('#d8d8d8', mz.x + rand(-1, 1), mz.y + 1, mz.z + rand(-1, 1), rand(1.5, 3), rand(0.8, 1.3), cv[0] * 0.9 + rand(-1, 1), rand(1, 3), cv[1] * 0.9 + rand(-1, 1), 2);
     Sfx.cannon(0.8);
     this.camShake = 0.35;
   }
@@ -1154,17 +1156,20 @@ export class Sea {
     if (this.G.state !== 'play') return;
     const mz = g.mz.getWorldPosition(new THREE.Vector3());
     const ta = P.h + rand(-0.022, 0.022);
-    const b = this.addBullet(mz.x, mz.y, mz.z, Math.cos(ta) * 150, 0.8, Math.sin(ta) * 150, 'p', 14, 2.3);
+    const sp = 150 + Math.max(0, P.v); // 船の速さを足す（走りながら撃っても弾が船より前へ）
+    const b = this.addBullet(mz.x, mz.y, mz.z, Math.cos(ta) * sp, 0.8, Math.sin(ta) * sp, 'p', 14, 2.3);
     b.ox = P.x; b.oz = P.z; b.g = 1.2;
-    this.muzzleFire(mz, ta);
+    this.muzzleFire(mz, ta, this.shipVel());
     Sfx.gun(rand(0.4, 0.55));
   }
-  muzzleFire(p, a) {
-    // 銃口から吹き出す火と煙
-    for (let k = 0; k < 7; k++) { const s = rand(8, 24); this.sprite(k < 4 ? '#ffb030' : '#ff5a10', p.x + Math.cos(a) * k * 1.1, p.y, p.z + Math.sin(a) * k * 1.1, rand(2.4, 3.6) - k * 0.25, 0.35, Math.cos(a) * s, rand(-1, 2), Math.sin(a) * s, 0.8); }
-    this.sprite('#fff0b0', p.x, p.y, p.z, 4, 0.1, 0, 0, 0, 0);
-    this.smoke(p.x + Math.cos(a), p.y, p.z + Math.sin(a), 2);
+  // 銃口から吹き出す火と煙。carry に船の速度を渡すと、火と煙も船と一緒に進む（船に置いていかれて後ろから撃ったように見えないように）
+  muzzleFire(p, a, carry) {
+    const cx = carry ? carry[0] : 0, cz = carry ? carry[1] : 0;
+    for (let k = 0; k < 7; k++) { const s = rand(8, 24); this.sprite(k < 4 ? '#ffb030' : '#ff5a10', p.x + Math.cos(a) * k * 1.1, p.y, p.z + Math.sin(a) * k * 1.1, rand(2.4, 3.6) - k * 0.25, 0.35, Math.cos(a) * s + cx, rand(-1, 2), Math.sin(a) * s + cz, 0.8); }
+    this.sprite('#fff0b0', p.x, p.y, p.z, 4, 0.1, cx, 0, cz, 0);
+    for (let i = 0; i < 2; i++) this.sprite('#e8e8e8', p.x + Math.cos(a) * 2 + rand(-1, 1), p.y, p.z + Math.sin(a) * 2 + rand(-1, 1), rand(1.5, 3), rand(0.6, 1), cx * 0.9 + rand(-1, 1), rand(1, 3), cz * 0.9 + rand(-1, 1), 2);
   }
+  shipVel() { const P = this.P; return [Math.cos(P.h) * Math.max(0, P.v), Math.sin(P.h) * Math.max(0, P.v)]; }
   addBullet(x, y, z, vx, vy, vz, from, dmg, life) {
     let m;
     if (from === 'p' || from === 'e') {

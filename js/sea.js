@@ -2,10 +2,11 @@
 import * as THREE from './vendor/three.module.min.js';
 import { DEM, SEA_K, VEX, hPx, hSea, ll2sea, sea2ll, ll2px, isLandPx, compAt, nearestLandPx } from './geo.js';
 import { BRIDGES, LANDMARKS, WHIRLPOOLS, ZONES, zoneAt, START, GOAL, DANNOURA, shipName, WIND, TIDE, STRAITS, HARBOR_HINT } from './data.js';
-import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeGanryu, makeFleetGeometry, makeFishingPort, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mat } from './models.js';
+import { makeShip, animateShip, makeCrewman, makeWarrior, makeMusket, makeGanryu, makeFleetGeometry, makeFishingPort, makeTorii, makeHall, makePagoda, makeJoyato, makeGangi, makeBridge, makePumpkin, makeLighthouse, mergeStatic, mat } from './models.js';
 import { Sfx } from './audio.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
 import { eraOf } from './samurai.js';
+import { LITE } from './perf.js';
 import { Fireworks } from './fireworks.js';
 import { L, islandName, getLang, romaji } from './i18n.js';
 const N = (o) => L(o.name, o.en || o.name);
@@ -17,6 +18,7 @@ const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if
 const SHIP_SCALE = 0.66; // 自分の船（敵の倍）
 const ENEMY_SCALE = 0.42;
 const SHIP_LEN = { kobaya: 18, seki: 24, ataka: 32 };
+const AID_MAX = 60; // 決戦に来る援軍（素通りした島の武将）の上限
 const CANNON_DMG = 30, CANNON_R = 12; // 敵の大砲：1発の傷・爆発の半径（10m単位）
 const PR = 6; // 自分の船の当たりの大きさ
 const BRIDGE_V = 0.42; // 橋の高さの倍率（大きな船がくぐれるように）
@@ -252,7 +254,8 @@ export class Sea {
     let built = 0;
     for (const ch of this.landChunks) {
       const d = Math.hypot(ch.wx - P.x, ch.wz - P.z);
-      const want = d < 1500 ? 1 : d < 3800 ? 2 : d < 7500 ? 4 : d < 12000 ? 8 : 0;
+      const k = LITE ? 0.7 : 1; // スマホでは細かい地形を近くだけにする
+      const want = d < 1500 * k ? 1 : d < 3800 * k ? 2 : d < 7500 * k ? 4 : d < 12000 ? 8 : 0;
       if (want === ch.stride) continue;
       if (!force && built >= 2 && want !== 0) continue; // 1 フレームに作る数を抑える
       if (ch.mesh) { this.scene.remove(ch.mesh); ch.mesh.geometry.dispose(); ch.mesh = null; }
@@ -351,6 +354,7 @@ export class Sea {
     const beamGeo = new THREE.CylinderGeometry(9, 11, 160, 16, 1, true); // 太い光の柱（この中に入れば上陸）
     const real = this.G.harborsReal || {};
     this.beamMat = new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, fog: false });
+    const ports = [];
     for (const isl of this.G.islands) {
       const hint = HARBOR_HINT[isl.id];
       const rp = real[isl.id]; // 地名検索で見つかった実際の港
@@ -377,13 +381,14 @@ export class Sea {
       const port = makeFishingPort(0.25);
       const cx = (best.lx + 0.5 + best.ox * 0.5) * SEA_K, cz = (best.ly + 0.5 + best.oy * 0.5) * SEA_K;
       port.position.set(cx, 0.2, cz); port.rotation.y = Math.atan2(best.ox, best.oy);
-      this.scene.add(port);
+      ports.push(port);
       // 光の柱は漁港の中（防波堤に囲まれた所）に立てる
       isl.harbor.x = cx + best.ox * 6; isl.harbor.z = cz + best.oy * 6;
       const beam = new THREE.Mesh(beamGeo, this.beamMat);
       beam.position.set(isl.harbor.x, 80, isl.harbor.z); beam.visible = false;
       this.scene.add(beam); isl.harbor.beam = beam;
     }
+    for (const m of mergeStatic(ports)) this.scene.add(m); // 漁港の部品をまとめて描く（軽くする）
   }
   // いちばん近い、財宝の残る島の港
   nearestHarbor() {
@@ -610,7 +615,8 @@ export class Sea {
     if (full) {
       for (const e of list) e._d = Math.hypot(e.x - P.x, e.z - P.z);
       list.sort((p, q) => p._d - q._d);
-      list.forEach((e, i) => { if (i < 24 && e._d < 900) this.attachModel(e); else if (e.m && (i >= 30 || e._d > 1100)) this.detachModel(e); });
+      const nd = LITE ? 14 : 24; // くわしく描く船の数（スマホは少なめ）
+      list.forEach((e, i) => { if (i < nd && e._d < 900) this.attachModel(e); else if (e.m && (i >= nd + 6 || e._d > 1100)) this.detachModel(e); });
     }
     if (!this.fleetMesh) {
       this.fleetMesh = new THREE.InstancedMesh(makeFleetGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }), 1200);
@@ -739,6 +745,24 @@ export class Sea {
       e.crewN = s.crewN; e.hp = e.maxHp * s.crewN / 8; e.h = Math.atan2(dz - p[1], dx - p[0]) + Math.PI / 2;
       n++;
     });
+    // 財宝を奪わずに素通りした島の武将が、援軍として決戦に加わる（強い船で来る）
+    const aid = [];
+    for (const isl of G.islands) {
+      if (G.taken.has(isl.id) || isl.lon > START.lon) continue; // 姫路より東の島は数えない
+      const cap = ((G.roster && G.roster.byIsland[isl.id]) || []).find((c) => c && !(G.slain && G.slain.has(c.ja)));
+      if (cap) aid.push({ isl, cap, big: (isl.areaKm2 || 0) >= 8 });
+    }
+    aid.sort((a, b) => (b.isl.areaKm2 || 0) - (a.isl.areaKm2 || 0));
+    let na = 0;
+    aid.slice(0, AID_MAX).forEach(({ isl, cap, big }, i) => {
+      const p = spot(140, 360 + Math.sqrt(i) * 50); if (!p) return;
+      const type = big || i % 3 === 0 ? 'ataka' : 'seki', iname = islandName(isl);
+      const e = this.spawnEnemy(type, p[0], p[1], zoneAt(isl.lon).faction, { cap, key: `aid:${isl.id}`, final: true, lite: true, pursue: false, station: { x: p[0], z: p[1] }, hpMul: 1.6, dmgMul: 1.3,
+        name: L(`${cap.ja}の援軍（${iname}）`, `${cap.en}'s reinforcements (${iname})`) });
+      e.h = Math.atan2(dz - p[1], dx - p[0]) + Math.PI / 2;
+      na++;
+    });
+    if (na) setTimeout(() => msg(L(`財宝を奪わなかった ${na} の島から、武将が援軍に来た！`, `Warlords from ${na} islands you never raided have come as reinforcements!`), 'warn', 7), 2500);
     if (n) msg(L(`航海で沈めなかった ${n} 艘の海賊船が、巌流島のまわりに集結している！`, `${n} pirate ships you left afloat have gathered around Ganryūjima!`), 'warn', 7);
     G.finalTotal = this.enemies.filter((e) => e.final).length;
     if (G.finalTotal > 40) banner(L(`敵 ${G.finalTotal} 艘`, `${G.finalTotal} enemy ships`), L('瀬戸内の海賊が巌流島に集結した', 'The pirates of the Inland Sea gather at Ganryūjima'));
@@ -1486,7 +1510,7 @@ export class Sea {
     m.position.set(x, y, z); m.scale.setScalar(s);
     this.scene.add(m);
     this.parts.push({ m, life, max: life, vx, vy, vz, grow });
-    if (this.parts.length > 260) { const p = this.parts.shift(); this.scene.remove(p.m); p.m.material.dispose(); }
+    if (this.parts.length > (LITE ? 150 : 260)) { const p = this.parts.shift(); this.scene.remove(p.m); p.m.material.dispose(); }
   }
   smoke(x, y, z, n = 1, c = '#e8e8e8') { for (let i = 0; i < n; i++) this.sprite(c, x + rand(-1, 1), y, z + rand(-1, 1), rand(1.5, 3), rand(1, 1.6), rand(-1, 1), rand(1, 3), rand(-1, 1), 2); }
   spark(x, y, z) { for (let i = 0; i < 4; i++) this.sprite('#ffd080', x, y, z, 1.2, 0.25, rand(-15, 15), rand(0, 12), rand(-15, 15), 0); }

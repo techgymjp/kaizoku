@@ -2,11 +2,12 @@
 // 戦い方は「孤軍奮闘小早川」と同じ（駆＝ダッシュ、刀＝3 連目で回転斬り・弾を弾く、槍＝駆を使い 2 人まで貫く、おむすびで回復）
 import * as THREE from './vendor/three.module.min.js';
 import { DEM, hPx, px2ll, lon2gx, lat2gy, gx2lon, gy2lat, loadImage, fetchWithTimeout, SEA_FLOOR } from './geo.js';
-import { LANDMARKS, ISLAND_NOTES, ISLAND_NOTES_EN, ISLAND_BOSSES, ZONES, zoneAt } from './data.js';
+import { LANDMARKS, ISLAND_NOTES, ISLAND_NOTES_EN, ISLAND_BOSSES, ZONES, zoneAt, maxHpFor } from './data.js';
 import { decodeMVT } from './mvt.js';
 import { Fireworks } from './fireworks.js';
 import { animateChest, makeFishingPort, makeCrewman, makeWarrior, poseWarrior, makeTorii, makeHall, makePagoda, makeJoyato, makeChest, makeOnigiri, makeShip, makeDeer, makeRabbit, makeGangi, makePumpkin, mat } from './models.js';
 import { Sfx } from './audio.js';
+import { LITE } from './perf.js';
 import { msg, banner, flash, Floats, Tags, $ } from './ui.js';
 import { L, islandName } from './i18n.js';
 
@@ -643,21 +644,27 @@ export class Island {
       if (this.bgrid(xx, zz).some((ob) => insideOBB(ob, xx, zz, 3))) continue;
       if (this.farmAt(xx, zz)) continue; // 畑や田んぼには木を立てない
       spots.push([xx, h, zz, r + g + b]);
-      if (spots.length > 7000) break;
+      if (spots.length > (LITE ? 3000 : 7000)) break;
     }
     if (!spots.length) return;
-    const trunk = new THREE.CylinderGeometry(0.18, 0.28, 3, 5); trunk.translate(0, 1.5, 0);
+    // 幹は上下のふたが見えないので筒だけにする。木は区画ごとに分けて、画面の外の区画は描かない（軽くする）
+    const trunk = new THREE.CylinderGeometry(0.18, 0.28, 3, LITE ? 4 : 5, 1, true); trunk.translate(0, 1.5, 0);
     const crown = new THREE.IcosahedronGeometry(2.4, 0); crown.scale(1, 0.75, 1); crown.translate(0, 4.4, 0);
-    const it = new THREE.InstancedMesh(trunk, cutaway(new THREE.MeshLambertMaterial({ color: '#5a3a22' })), spots.length);
-    const ic = new THREE.InstancedMesh(crown, cutaway(new THREE.MeshLambertMaterial({ color: '#ffffff' })), spots.length);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color();
-    spots.forEach(([x, y, z, br], i) => {
-      const s = rand(0.7, 1.5);
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand(0, TAU)); sc.set(s, s * rand(0.8, 1.3), s); p.set(x, y - 0.3, z);
-      m4.compose(p, q, sc); it.setMatrixAt(i, m4); ic.setMatrixAt(i, m4);
-      c.setHSL(0.27 + rand(-0.04, 0.05), 0.35 + rand(0, 0.2), 0.18 + rand(0, 0.1)); ic.setColorAt(i, c);
-    });
-    this.scene.add(it, ic);
+    const tm = cutaway(new THREE.MeshLambertMaterial({ color: '#5a3a22' })), cm = cutaway(new THREE.MeshLambertMaterial({ color: '#ffffff' }));
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), c = new THREE.Color(), up = new THREE.Vector3(0, 1, 0);
+    const TILE = 200, tiles = new Map();
+    for (const sp of spots) { const k = Math.floor(sp[0] / TILE) + ',' + Math.floor(sp[2] / TILE); if (!tiles.has(k)) tiles.set(k, []); tiles.get(k).push(sp); }
+    for (const list of tiles.values()) {
+      const it = new THREE.InstancedMesh(trunk, tm, list.length), ic = new THREE.InstancedMesh(crown, cm, list.length);
+      list.forEach(([x, y, z], i) => {
+        const s = rand(0.7, 1.5);
+        q.setFromAxisAngle(up, rand(0, TAU)); sc.set(s, s * rand(0.8, 1.3), s); p.set(x, y - 0.3, z);
+        m4.compose(p, q, sc); it.setMatrixAt(i, m4); ic.setMatrixAt(i, m4);
+        c.setHSL(0.27 + rand(-0.04, 0.05), 0.35 + rand(0, 0.2), 0.18 + rand(0, 0.1)); ic.setColorAt(i, c);
+      });
+      it.computeBoundingSphere(); ic.computeBoundingSphere();
+      this.scene.add(it, ic);
+    }
   }
 
   // ---------------- 財宝と敵 ----------------
@@ -827,6 +834,7 @@ export class Island {
       T.taken = true;
       G.taken.add(this.isl.id);
       G.gold += T.value;
+      { const up = maxHpFor(G.taken.size) - G.maxHp; if (up > 0) { G.maxHp += up; G.hp += up; setTimeout(() => msg(L(`船の守りが固くなった！ 体力の上限 +${up}（${G.maxHp}）`, `Your ship grows stronger! Max HP +${up} (${G.maxHp})`), 'kill', 4), 1200); } }
       T.m.userData.lid.rotation.x = -1.9; T.m.userData.beam.visible = false; T.m.userData.glow.visible = false;
       for (let k = 0; k < 30; k++) this.sprite(k % 2 ? '#ffe070' : '#ffffff', T.x, this.hAt(T.x, T.z) + 2, T.z, 0.6, 1.2, rand(-6, 6), rand(4, 12), rand(-6, 6), 0.5, 8);
       Sfx.treasure(); Sfx.swell(0.8);
@@ -1226,7 +1234,7 @@ export class Island {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.smokeTex, color, transparent: true, depthWrite: false }));
     m.position.set(x, y, z); m.scale.setScalar(s); this.scene.add(m);
     this.parts.push({ m, life, max: life, vx, vy, vz, grow, g });
-    if (this.parts.length > 300) { const p = this.parts.shift(); this.scene.remove(p.m); p.m.material.dispose(); }
+    if (this.parts.length > (LITE ? 160 : 300)) { const p = this.parts.shift(); this.scene.remove(p.m); p.m.material.dispose(); }
   }
   blood(x, y, z, n) { for (let i = 0; i < n; i++) { const a = rand(0, TAU), s = rand(1.5, 6); this.sprite(Math.random() < 0.5 ? '#a0101a' : '#d0202a', x, y, z, rand(0.12, 0.25), rand(0.3, 0.7), Math.cos(a) * s, rand(1, 4), Math.sin(a) * s, 0, 14); } }
   spark(x, y, z, c) { for (let i = 0; i < 6; i++) { const a = rand(0, TAU); this.sprite(c, x, y, z, 0.15, 0.25, Math.cos(a) * 8, rand(-3, 6), Math.sin(a) * 8, 0); } }

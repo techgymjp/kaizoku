@@ -847,3 +847,39 @@ export function makeFishingPort(k = 1) {
   for (let i = 0; i < 6; i++) B(1.1, 0.8, 0.8, mat(i % 2 ? '#3a6aa0' : '#8a6a3a'), 10 + i * 1.2, 1.7, -2);
   return g;
 }
+
+// 動かない飾り（漁港・灯台など）をまとめて、材質ごと・区画ごとに 1 つのメッシュにする。
+// 部品が何千個もあるとスマホでは描くだけで重いので、描く回数を数十回まで減らす
+export function mergeStatic(objects, cell = 5000) {
+  const buckets = new Map();
+  const ATTR = ['position', 'normal', 'uv', 'color'];
+  for (const root of objects) {
+    root.updateMatrixWorld(true);
+    const ck = Math.floor(root.position.x / cell) + ',' + Math.floor(root.position.z / cell);
+    root.traverse((o) => {
+      if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || !o.visible) return;
+      const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+      g.applyMatrix4(o.matrixWorld);
+      const names = ATTR.filter((n) => g.attributes[n] && !g.attributes[n].isInterleavedBufferAttribute);
+      const key = o.material.uuid + '|' + names.join(',') + '|' + ck;
+      let b = buckets.get(key);
+      if (!b) buckets.set(key, (b = { mat: o.material, names, geos: [] }));
+      b.geos.push(g);
+    });
+  }
+  const out = [];
+  for (const b of buckets.values()) {
+    const merged = new THREE.BufferGeometry();
+    for (const n of b.names) {
+      const it = b.geos[0].attributes[n].itemSize;
+      const arr = new Float32Array(b.geos.reduce((s, g) => s + g.attributes[n].count * it, 0));
+      let off = 0;
+      for (const g of b.geos) { const a = g.attributes[n].array; arr.set(a, off); off += a.length; }
+      merged.setAttribute(n, new THREE.BufferAttribute(arr, it));
+    }
+    merged.computeBoundingSphere();
+    for (const g of b.geos) g.dispose();
+    out.push(new THREE.Mesh(merged, b.mat));
+  }
+  return out;
+}

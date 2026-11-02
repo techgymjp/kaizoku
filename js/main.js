@@ -7,15 +7,30 @@ import { Island } from './island.js';
 import { Sfx } from './audio.js';
 import { $, msg, banner } from './ui.js';
 import { L, setLang, getLang, applyHTML, islandName } from './i18n.js';
-import { STORY, STORY_EN, zoneAt, ZONES } from './data.js';
+import { STORY, STORY_EN, zoneAt, ZONES, maxHpFor } from './data.js';
 import { buildRoster, ERAS } from './samurai.js';
+import { LITE } from './perf.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
 // ---------------- 描画 ----------------
 const canvas = $('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+// スマホではなめらかさ（アンチエイリアス）を切り、解像度も控えめにする
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !LITE, logarithmicDepthBuffer: true, powerPreference: 'high-performance' });
+const PR_MAX = Math.min(LITE ? 1.5 : 2, devicePixelRatio || 1), PR_MIN = Math.min(PR_MAX, LITE ? 0.75 : 1);
+let pixelRatio = PR_MAX;
+renderer.setPixelRatio(pixelRatio);
+// 重いときは自動で解像度を下げ、余裕が出たら少しずつ戻す
+const perf = { t: 0, n: 0 };
+function adaptQuality(rawDt) {
+  perf.t += rawDt; perf.n++;
+  if (perf.t < 2) return;
+  const fps = perf.n / perf.t; perf.t = 0; perf.n = 0;
+  let pr = pixelRatio;
+  if (fps < 40) pr = Math.max(PR_MIN, pr - (fps < 25 ? 0.25 : 0.125));
+  else if (fps > 57) pr = Math.min(PR_MAX, pr + 0.125);
+  if (pr !== pixelRatio) { pixelRatio = pr; renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight); }
+}
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
@@ -277,6 +292,7 @@ function continueGame() {
   if (!d) { start(); return; }
   Object.assign(G, { t: d.t || 0, hp: Math.max(1, d.hp || G.maxHp), gold: d.gold || 0, sunk: d.sunk || 0, kills: d.kills || 0, bosses: d.bosses || 0, minX: d.minX ?? G.minX });
   G.taken = new Set(d.taken || []);
+  G.maxHp = maxHpFor(G.taken.size); G.hp = Math.min(G.hp, G.maxHp);
   G.slain = new Set(d.slain || []);
   if (d.seed) { G.seed = d.seed; G.roster = buildRoster(islands, G.seed); }
   G.guards = new Map(d.guards || []);
@@ -480,7 +496,9 @@ let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
   syncBanner();
-  let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const rawDt = (now - last) / 1000;
+  let dt = Math.min(0.05, rawDt); last = now;
+  if (rawDt < 0.5 && !document.hidden) adaptQuality(rawDt);
   if (!G) return;
   if (mode === 'title') {
     // タイトルの背景：姫路港をゆっくり巡る

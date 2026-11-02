@@ -190,3 +190,7 @@ export const ISLAND_NOTES_EN = {
 
 // 港の位置を指定する島（無ければ、地名の位置にいちばん近い岸）
 export const HARBOR_HINT = { '淡路島-28': [135.019, 34.592], '小豆島-37': [134.181, 34.484], '屋代島-35': [132.230, 33.958], '江田島-34': [132.444, 34.208], '倉橋島-34': [132.540, 34.180] };
+
+// 財宝を奪った島 1 つごとに、船の体力の上限が 10 上がる（最大 700）
+export const HP_BASE = 300, HP_PER_ISLAND = 10, HP_MAX = 700;
+export const maxHpFor = (raided) => Math.min(HP_MAX, HP_BASE + raided * HP_PER_ISLAND);

@@ -38,7 +38,7 @@ function cutaway(m) {
 
 // 戦いの数値（小早川の値を、1 画素 ≒ 4.5cm として m に直したもの）
 const K = {
-  walk: 13.2, dashMul: 1.9, // 歩きは小早川の 2 倍（財宝まで速く行けるように） swordR: 2.7, spinR: 3.2, swordArc: 1.25, spearLen: 4.8, spearChargeLen: 5.8, spearHalf: 0.75,
+  walk: 13.2 * 1.5, dashMul: 1.9, // さらに 1.5 倍（2026-11） // 歩きは小早川の 3 倍（財宝まで速く行けるように） swordR: 2.7, spinR: 3.2, swordArc: 1.25, spearLen: 4.8, spearChargeLen: 5.8, spearHalf: 0.75,
   pr: 0.5, er: 0.42, reach: 1.0, genReach: 1.3, gunRange: 26, bulletSp: 34, knock: 7,
   SPEAR_ST: 14, PIERCE: 2, dmg: 1.24, genHp: 1.29, genHeal: 46, dropRate: 0.05, regen: 1.5,
 };
@@ -767,9 +767,9 @@ export class Island {
     this.scene.add(m);
     const prog = this.G.progress || 0;
     const e = { type, x, z, hx: x, hz: z, alive: true, state: 'hold', group, face: rand(0, TAU), m, atkT: 0, cd: rand(0.5, 1.5), aimT: 0, aimA: 0, flash: 0, kvx: 0, kvz: 0, gait: rand(0, 6), trampleCd: 0, routT: 0, charge: 0, chargeT: 0, chargeCd: rand(2, 4), chargeA: 0, wobble: rand(0, TAU) };
-    if (type === 'gen') { const b = info || this.boss; e.info = b; e.r = 0.55; e.hp = e.maxHp = b.hp * K.genHp; e.speed = (b.brave ? 7.6 : 6.6) * 2; e.dmg = b.pow * K.dmg; e.reach = K.genReach; e.windup = 0.45; e.name = b.name; e.short = b.short; }
-    else if (type === 'gun') { e.r = K.er; e.hp = e.maxHp = 24; e.speed = 8.8; e.dmg = (15 + prog * 4) * K.dmg; e.reach = 0; e.windup = 0.75; }
-    else { e.r = K.er; e.hp = e.maxHp = 32 + prog * 10; e.speed = rand(9.2, 10.8); e.dmg = (8 + prog * 3) * K.dmg; e.reach = K.reach; e.windup = 0.42; }
+    if (type === 'gen') { const b = info || this.boss; e.info = b; e.r = 0.55; e.hp = e.maxHp = b.hp * K.genHp; e.speed = (b.brave ? 7.6 : 6.6) * 2 * 1.5; e.dmg = b.pow * K.dmg; e.reach = K.genReach; e.windup = 0.45; e.name = b.name; e.short = b.short; }
+    else if (type === 'gun') { e.r = K.er; e.hp = e.maxHp = 24; e.speed = 8.8 * 1.5; e.dmg = (15 + prog * 4) * K.dmg; e.reach = 0; e.windup = 0.75; }
+    else { e.r = K.er; e.hp = e.maxHp = 32 + prog * 10; e.speed = rand(9.2, 10.8) * 1.5; e.dmg = (8 + prog * 3) * K.dmg; e.reach = K.reach; e.windup = 0.42; }
     this.enemies.push(e);
     return e;
   }

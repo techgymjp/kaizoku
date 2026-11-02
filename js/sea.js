@@ -18,6 +18,7 @@ const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if
 const SHIP_SCALE = 0.66; // 自分の船（敵の倍）
 const ENEMY_SCALE = 0.42;
 const SHIP_LEN = { kobaya: 18, seki: 24, ataka: 32 };
+const SPD = 1.5; // 船の速さの倍率（自分も敵も）
 const AID_MAX = 60; // 決戦に来る援軍（素通りした島の武将）の上限
 const CANNON_DMG = 30, CANNON_R = 12; // 敵の大砲：1発の傷・爆発の半径（10m単位）
 const PR = 6; // 自分の船の当たりの大きさ
@@ -572,7 +573,7 @@ export class Sea {
     if (log && !ent && !opt.final) { ent = { type, cap, faction, crewN: 8 }; log.set(key, ent); }
     const e = {
       key, ent, type, x, z, h: Math.atan2(this.P.z - z, this.P.x - x), v: 0, hp, maxHp: hp, m: null, faction, cd: rand(1, 3),
-      speed: { kobaya: 27, seki: 21, ataka: 15 }[type] * (opt.spMul || 1), r: SHIP_LEN[type] * ENEMY_SCALE * 0.42, crew: [], crewN: ent ? ent.crewN : 8,
+      speed: { kobaya: 27, seki: 21, ataka: 15 }[type] * SPD * (opt.spMul || 1), r: SHIP_LEN[type] * ENEMY_SCALE * 0.42, crew: [], crewN: ent ? ent.crewN : 8,
       guard: opt.guard || null, pursue: opt.pursue ?? !opt.guard, far: false, cap, name: opt.name || (cap ? shipName(cap, type, getLang()) : L(faction.name, faction.en)), boss: !!opt.boss, wob: rand(0, TAU),
       dmg: { kobaya: 7, seki: 9, ataka: 12 }[type] * (opt.dmgMul || 1), guns: { kobaya: 1, seki: 2, ataka: 4 }[type], sink: 0, final: !!opt.final, ghost: faction.crest === 'heike', station: opt.station || null,
     };
@@ -791,10 +792,10 @@ export class Sea {
     const dash = (I.down('Space') || I.down('ShiftLeft') || I.down('ShiftRight') || I.tDash) && G.st > 3 && P.sail > 0;
     if (dash) { P.dashT = (P.dashT || 0) + dt; G.st = Math.max(0, G.st - 16 * dt); G.stDelay = 0.6; if (Math.random() < dt * 4) Sfx.oar(); }
     else { P.dashT = 0; if (G.stDelay > 0) G.stDelay -= dt; else G.st = Math.min(G.maxSt, G.st + 16 * dt); }
-    const sailV = [-6, 0, 13, 22, 31][P.sail + 1];
-    const target = (sailV > 0 ? sailV * this.windMul(P.h) : sailV) + (dash ? 20 + Math.min(40, P.dashT * 16) : 0); // 長押しするほど速い（最大 +60）
+    const sailV = [-6, 0, 13, 22, 31][P.sail + 1] * SPD;
+    const target = (sailV > 0 ? sailV * this.windMul(P.h) : sailV) + (dash ? (20 + Math.min(40, P.dashT * 16)) * SPD : 0); // 長押しするほど速い（最大 +90）
     P.v += (target - P.v) * (1 - Math.exp(-dt * (target > P.v ? (dash ? 1.6 : 0.7) : 1.2)));
-    const tr = turn * (0.55 + Math.min(0.5, Math.abs(P.v) / 40));
+    const tr = turn * (0.55 + Math.min(0.5, Math.abs(P.v) / (40 * SPD)));
     P.h += tr * dt;
     P.roll += (-turn * Math.min(1, Math.abs(P.v) / 25) * 0.12 - P.roll) * (1 - Math.exp(-dt * 3));
     // 渦潮
@@ -812,7 +813,7 @@ export class Sea {
     const nx = P.x + Math.cos(P.h) * P.v * dt, nz = P.z + Math.sin(P.h) * P.v * dt;
     const bowX = nx + Math.cos(P.h) * PR * Math.sign(P.v || 1), bowZ = nz + Math.sin(P.h) * PR * Math.sign(P.v || 1);
     if (hSea(bowX, bowZ) > -1.2 || hSea(nx, nz) > -1.2 || this.isletAt(bowX, bowZ, 1) || this.isletAt(nx, nz, 3)) {
-      if (Math.abs(P.v) > 14 && P.inv <= 0) { this.hurtHull(Math.abs(P.v) * 0.25, P.x, P.z, true); msg(L('座礁した！', 'Ran aground!'), 'warn', 2); P.inv = 1; Sfx.crack(0.3); }
+      if (Math.abs(P.v) > 14 && P.inv <= 0) { this.hurtHull(Math.abs(P.v) / SPD * 0.25, P.x, P.z, true); msg(L('座礁した！', 'Ran aground!'), 'warn', 2); P.inv = 1; Sfx.crack(0.3); }
       P.v *= -0.25;
     } else { P.x = nx; P.z = nz; }
     // 橋脚
@@ -1420,7 +1421,7 @@ export class Sea {
     }
     if (d < e.r + PR) {
       e.x -= dx / d * (e.r + PR - d); e.z -= dz / d * (e.r + PR - d);
-      if (P.inv <= 0 && Math.abs(this.P.v) > 15) { this.hurtEnemy(e, Math.abs(P.v) * 1.2, true); P.inv = 0.6; this.floats.add(e.x, 9, e.z, L('体当たり！', 'Ram!'), '#ff9a5a'); }
+      if (P.inv <= 0 && Math.abs(this.P.v) > 15) { this.hurtEnemy(e, Math.abs(P.v) / SPD * 1.2, true); P.inv = 0.6; this.floats.add(e.x, 9, e.z, L('体当たり！', 'Ram!'), '#ff9a5a'); }
     }
     // 鉄砲を撃つ
     // 船首を自分の船に向けているときだけ、船首の大砲・鉄砲で撃つ

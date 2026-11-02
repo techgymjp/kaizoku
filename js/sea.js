@@ -17,6 +17,7 @@ const angDiff = (a, b) => { let d = (a - b) % TAU; if (d > Math.PI) d -= TAU; if
 const SHIP_SCALE = 0.66; // 自分の船（敵の倍）
 const ENEMY_SCALE = 0.42;
 const SHIP_LEN = { kobaya: 18, seki: 24, ataka: 32 };
+const CANNON_DMG = 30, CANNON_R = 12; // 敵の大砲：1発の傷・爆発の半径（10m単位）
 const PR = 6; // 自分の船の当たりの大きさ
 const BRIDGE_V = 0.42; // 橋の高さの倍率（大きな船がくぐれるように）
 const KT = 0.6; // 潮の速さ 1 ノットをゲームの何単位/秒にするか（船の速さに合わせて強調）
@@ -56,7 +57,7 @@ export class Sea {
     this.view = 'chase'; // 船の後ろからの視点
     this.floats = new Floats(); this.tags = new Tags();
     this.chunks = new Map();
-    this.enemies = []; this.bullets = []; this.parts = []; this.loot = []; this.wakes = []; this.fallers = [];
+    this.enemies = []; this.bullets = []; this.warns = []; this.parts = []; this.loot = []; this.wakes = []; this.fallers = [];
     this.t = 0; this.spawnT = 3; this.camYaw = 0; this.camDist = 50; this.camH = 30;
     this.colliders = [];
   }
@@ -851,6 +852,7 @@ export class Sea {
       return true;
     });
     this.updateBullets(dt);
+    this.updateWarns(dt);
     this.updateParts(dt);
     this.updateFallers(dt);
     this.fw.update(dt);
@@ -1200,7 +1202,7 @@ export class Sea {
       m.lookAt(x + vx, y + vy, z + vz);
     } else m = new THREE.Mesh(this.bulletGeo, this.bombMat);
     m.position.set(x, y, z);
-    if (from === 'bomb') m.scale.setScalar(2);
+    if (from === 'bomb' || from === 'ebomb') m.scale.setScalar(from === 'ebomb' ? 2.4 : 2);
     this.scene.add(m);
     const b = { m, x, y, z, vx, vy, vz, from, dmg, life, x0: x, z0: z };
     this.bullets.push(b);
@@ -1211,7 +1213,7 @@ export class Sea {
     for (const b of this.bullets) {
       b.life -= dt;
       b.x += b.vx * dt; b.z += b.vz * dt;
-      if (b.from === 'bomb') { b.vy -= 40 * dt; b.y += b.vy * dt; }
+      if (b.from === 'bomb' || b.from === 'ebomb') { b.vy -= 40 * dt; b.y += b.vy * dt; }
       else if (b.g) { b.vy -= b.g * dt; b.y += b.vy * dt; if (b.y < 0) { b.life = 0; this.splashAt(b.x, b.z, 0.6); } }
       else b.y = Math.max(0.6, b.y - dt * 0.4);
       b.m.position.set(b.x, b.y, b.z);
@@ -1225,6 +1227,19 @@ export class Sea {
           b.life = 0;
           this.explode(b.x, b.z);
           for (const e of this.enemies) { if (e.sink) continue; const dd = Math.hypot(e.x - b.x, e.z - b.z); if (dd < 18 + e.r) { const kill = dd < e.r + 5 ? 4 : 2; this.floats.add(e.x, 9, e.z, L(`砲撃！ ${kill} 人`, `Cannon! ${kill} down`), '#ffb040', true); this.hurtEnemy(e, (e.maxHp / 8) * kill + 0.01); } }
+        }
+        continue;
+      }
+      if (b.from === 'ebomb') {
+        if (b.y <= 0.2) {
+          b.life = 0;
+          this.explode(b.x, b.z, true);
+          if (b.warn) b.warn.life = 0;
+          if (Math.hypot(P.x - b.x, P.z - b.z) < CANNON_R + PR * 0.5) {
+            this.hurtHull(b.dmg, b.x, b.z);
+            this.floats.add(P.x, 20, P.z, L('大砲が命中！', 'Cannonball hit!'), '#ff5040', true);
+            this.camShake = 1.2;
+          }
         }
         continue;
       }
@@ -1404,6 +1419,8 @@ export class Sea {
         }, i * 160);
       }
     }
+    // 大砲：安宅船と平家の大将の船だけ。撃つ前に船首が赤く光り、着弾点に赤い輪が出る（舵を切ればよけられる）
+    if ((e.type === 'ataka' || e.boss) && e.pursue) this.enemyCannon(e, dt, d, facing);
     if (!e.m) { this.addWake(e.x, e.z, e.h, e.v * 0.3, e.r); return; }
     e.m.position.set(e.x, 0.2 + Math.sin(this.t * 1.2 + e.wob) * 0.12, e.z);
     e.m.rotation.set(0, Math.atan2(-Math.cos(e.h), -Math.sin(e.h)), 0);
@@ -1412,6 +1429,55 @@ export class Sea {
     const cv = d < 450; if (e.crewVis !== cv) { e.crewVis = cv; for (const c of e.crew) c.visible = cv; }
     if (d < 500) { const la = Math.atan2(-(P.x - e.x), -(P.z - e.z)) - e.m.rotation.y - Math.PI; for (const c of e.crew) c.rotation.y = la + Math.PI; }
     this.addWake(e.x, e.z, e.h, e.v, e.r);
+  }
+
+  enemyCannon(e, dt, d, facing) {
+    const P = this.P;
+    if (e.ccd === undefined) e.ccd = rand(3, 6);
+    const bl = SHIP_LEN[e.type] * ENEMY_SCALE * 0.5;
+    const bx = e.x + Math.cos(e.h) * bl, bz = e.z + Math.sin(e.h) * bl;
+    if (e.tele > 0) {
+      e.tele -= dt;
+      // 予告：船首が赤く光り、煙が上がる
+      if (Math.random() < 0.6) this.sprite(Math.random() < 0.5 ? '#ff3a1a' : '#ffb040', bx, 2.6, bz, rand(2.5, 4.5) * (1.4 - e.tele * 0.3), 0.18, 0, 0, 0, 1);
+      if (Math.random() < 0.25) this.smoke(bx, 2.5, bz, 1, '#cfcfcf');
+      if (e.tele <= 0) {
+        // 撃つ：狙いは構えたときに決めた場所（その後に舵を切れば当たらない）
+        const tx = e.ctx, tz = e.ctz, dd = Math.max(20, Math.hypot(tx - bx, tz - bz));
+        const T = 0.9 + dd / 200, g = 40;
+        const b = this.addBullet(bx, 3, bz, (tx - bx) / T, 0.5 * g * T - 3 / T, (tz - bz) / T, 'ebomb', CANNON_DMG, T + 1);
+        b.warn = e.warnRing; e.warnRing = null;
+        const a = Math.atan2(tz - bz, tx - bx);
+        this.muzzleFire({ x: bx, y: 3, z: bz }, a, [Math.cos(e.h) * Math.max(0, e.v), Math.sin(e.h) * Math.max(0, e.v)]);
+        this.smoke(bx, 3, bz, 4, '#9a9a9a');
+        Sfx.bomb(); e.ccd = rand(6, 9) / (e.boss ? 1.5 : 1);
+      }
+      return;
+    }
+    e.ccd -= dt;
+    if (e.ccd > 0 || d > 260 || d < 30 || !facing) return;
+    // 構える：自分の船がこのまま進んだときの位置を狙う
+    const T = 0.9 + d / 200, tele = 1.4;
+    const lead = tele + T;
+    e.ctx = P.x + Math.cos(P.h) * P.v * lead; e.ctz = P.z + Math.sin(P.h) * P.v * lead;
+    e.tele = tele;
+    const ring = new THREE.Mesh(this.warnGeo || (this.warnGeo = new THREE.RingGeometry(CANNON_R - 1.6, CANNON_R, 40)),
+      new THREE.MeshBasicMaterial({ color: '#ff2a1a', transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.set(e.ctx, 0.6, e.ctz);
+    this.scene.add(ring);
+    e.warnRing = { m: ring, e, life: lead + 1.5 };
+    this.warns.push(e.warnRing);
+    this.floats.add(e.x, 12, e.z, L('大砲を構えた！', 'Cannon ready!'), '#ff6040', true);
+    Sfx.horn(0.14, 0, 0.6, [0.5]);
+  }
+  updateWarns(dt) {
+    for (const w of this.warns) {
+      w.life -= dt;
+      if (w.e && w.e.sink && w.e.warnRing === w) w.life = 0; // 撃つ前に沈んだ
+      w.m.material.opacity = 0.35 + 0.35 * Math.abs(Math.sin(this.t * 9));
+      const s = 1 + Math.sin(this.t * 9) * 0.04; w.m.scale.set(s, s, s);
+    }
+    this.warns = this.warns.filter((w) => { if (w.life <= 0) { this.scene.remove(w.m); w.m.material.dispose(); return false; } return true; });
   }
 
   // ---- 粒子 ----

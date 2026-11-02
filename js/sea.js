@@ -1138,11 +1138,28 @@ export class Sea {
     // 船首の大砲：船の向きに、約 1.8km 先へ
     const mz = this.bowCannon ? this.bowCannon.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(P.x, 4, P.z);
     // 正面に敵がいれば、砲手がその距離に仰角を合わせる
-    const fe = this.front && !this.front.e.sink ? this.front.e : null;
-    const d = fe ? clamp(Math.hypot(fe.x - mz.x, fe.z - mz.z) + (Math.cos(fe.h) * Math.cos(P.h) + Math.sin(fe.h) * Math.sin(fe.h === undefined ? 0 : P.h)) * fe.v * 0.8, 30, 300) : 180;
+    // 砲手は、船首の左右 15 度以内でいちばん近い敵（3km 以内）に狙いを付ける
+    let fe = null, fd = 1e9;
+    for (const e of this.enemies) {
+      if (e.sink || e.far) continue;
+      const ex = e.x - mz.x, ez = e.z - mz.z, ed = Math.hypot(ex, ez);
+      if (ed < 15 || ed > 300 || Math.abs(angDiff(Math.atan2(ez, ex), P.h)) > 0.26) continue;
+      if (ed < fd) { fd = ed; fe = e; }
+    }
+    let d = 180, aimA = P.h;
+    if (fe) {
+      // 砲弾が着くまでに敵が進む先を読んで、そこへ撃つ（向きも少しだけ合わせる）
+      let px = fe.x, pz = fe.z;
+      for (let k = 0; k < 3; k++) {
+        const dd = Math.hypot(px - mz.x, pz - mz.z), hv0 = Math.max(dd / (0.7 + dd / 220), Math.max(0, P.v) + 70), T0 = dd / hv0;
+        px = fe.x + Math.cos(fe.h) * fe.v * T0; pz = fe.z + Math.sin(fe.h) * fe.v * T0;
+      }
+      d = clamp(Math.hypot(px - mz.x, pz - mz.z), 20, 320);
+      aimA = Math.atan2(pz - mz.z, px - mz.x);
+    }
     // 船が速く走っていても砲弾が船より前へ飛ぶよう、横の速さは船の速さより必ず速くする
     const hv = Math.max(d / (0.7 + d / 220), Math.max(0, P.v) + 70), T = d / hv;
-    const vx = Math.cos(P.h) * hv, vz = Math.sin(P.h) * hv;
+    const vx = Math.cos(aimA) * hv, vz = Math.sin(aimA) * hv;
     const vy = (0.5 * 40 * T * T - mz.y) / T;
     this.addBullet(mz.x, mz.y, mz.z, vx, vy, vz, 'bomb', 70, T + 0.5);
     const cv = this.shipVel();
@@ -1207,7 +1224,7 @@ export class Sea {
         if (b.y <= 0.2) {
           b.life = 0;
           this.explode(b.x, b.z);
-          for (const e of this.enemies) { if (e.sink) continue; const dd = Math.hypot(e.x - b.x, e.z - b.z); if (dd < 14 + e.r) { const kill = dd < e.r + 3 ? 4 : 2; this.floats.add(e.x, 9, e.z, L(`砲撃！ ${kill} 人`, `Cannon! ${kill} down`), '#ffb040', true); this.hurtEnemy(e, (e.maxHp / 8) * kill + 0.01); } }
+          for (const e of this.enemies) { if (e.sink) continue; const dd = Math.hypot(e.x - b.x, e.z - b.z); if (dd < 18 + e.r) { const kill = dd < e.r + 5 ? 4 : 2; this.floats.add(e.x, 9, e.z, L(`砲撃！ ${kill} 人`, `Cannon! ${kill} down`), '#ffb040', true); this.hurtEnemy(e, (e.maxHp / 8) * kill + 0.01); } }
         }
         continue;
       }

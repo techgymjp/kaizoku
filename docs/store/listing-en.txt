@@ -1,0 +1,45 @@
+Pirate King of the Seto Inland Sea - Google Play store listing (English / en-US)
+
+[App name] (max 30 characters)
+Pirate King of the Seto Sea
+
+[Short description] (max 80 characters)
+Sail the real Seto Inland Sea in 3D. Raid islands, sink pirates, win the final!
+
+[Full description] (max 4000 characters)
+You are Minamoto no Yoshitsune, captain of a pirate ship. Leave Himeji port and sail west across the Seto Inland Sea.
+The real sea and more than 140 inhabited islands are rebuilt in 3D from the terrain data and aerial photos of the Geospatial Information Authority of Japan.
+Land on the islands, raid their treasure, sink the pirate fleets, and fight your way to the final battle at Ganryūjima.
+
+■ BATTLES AT SEA: MUSKETEERS AND CANNON
+• Five musketeers on the bow fire a volley wherever your ship is pointing. The closer you are, the more shots hit
+• Your cannon reads the enemy's course and lands a shell right on its deck
+• Every enemy ship has 8 crew. Down them all and the ship blows itself up
+• Big atakebune warships fire cannons back. When a bow glows red and a red ring appears on the sea, turn hard to dodge
+• West winds, tides that turn with the hour, the Naruto whirlpools: you sail a real sea
+
+■ BATTLES ON LAND: SWORD AND SPEAR
+• Sail into a port marked by a golden pillar of light to land
+• Three sword slashes end in a spinning strike; a running spear thrust cuts through a whole line. Hold "Full" to charge
+• Hillside towns, terraced fields, mikan orchards, rice paddies and shrines, each island shaped like the real one
+• More than 800 historical warlords, from the Heian era to the Bakumatsu, stand in your way; the farther west you go, the later the era
+• A warlord you defeat never comes back
+
+■ THE MORE ISLANDS YOU RAID, THE EASIER THE FINAL BATTLE
+• Every treasure you take raises your ship's max HP
+• Warlords of the islands you skip join the final battle as reinforcements
+• Every ship you leave afloat gathers at Ganryūjima too. Sink them all and reach the island where Miyamoto Musashi and Sasaki Kojirō stand
+
+■ AND MORE
+• Fireworks when you take a treasure and when you win
+• Bold, swashbuckling music
+• Your voyage is saved when you return to the title screen; pick up where you left off with "Continue"
+• Fallen? Watch an ad to get back up with full HP (up to 3 times per voyage)
+• Share your results and title with friends
+• Japanese and English
+• An internet connection is needed to load island terrain and photos
+
+Terrain, aerial photos and buildings: processed from GSI Tiles (Geospatial Information Authority of Japan)
+Battle system, sound and character: based on "Kobayakawa: Lone Samurai" (TECH GYM)
+
+Set sail, and become the Pirate King of the Seto Inland Sea!

@@ -23,6 +23,7 @@ renderer.setPixelRatio(pixelRatio);
 // 重いときは自動で解像度を下げ、余裕が出たら少しずつ戻す
 const perf = { t: 0, n: 0 };
 function adaptQuality(rawDt) {
+  if (perf.fixed) return;
   perf.t += rawDt; perf.n++;
   if (perf.t < 2) return;
   const fps = perf.n / perf.t; perf.t = 0; perf.n = 0;
@@ -538,5 +539,6 @@ addEventListener('pointerdown', () => { if (!paused()) Sfx.resume(); }, true);
 addEventListener('touchstart', () => { if (!paused()) Sfx.resume(); }, { capture: true, passive: true });
 setInterval(() => { if (!document.hidden && !paused() && Sfx.state === 'interrupted') Sfx.resume(); }, 2000);
 
-window.__kz = { get G() { return G; }, get sea() { return sea; }, get island() { return island; }, I };
+window.__kz = { get G() { return G; }, get sea() { return sea; }, get island() { return island; }, I,
+  setPR(v) { perf.fixed = true; pixelRatio = v; renderer.setPixelRatio(v); renderer.setSize(innerWidth, innerHeight); } }; // 確認・撮影用
 boot().catch((e) => { console.error(e); setLoad('読み込みに失敗しました / Failed to load: ' + e.message); });

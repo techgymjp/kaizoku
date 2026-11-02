@@ -1,0 +1,49 @@
+Pirate King of the Seto Inland Sea - English source text for machine translation (Google Play store listing)
+
+This version uses short, plain sentences without idioms or slang, so that automatic translation
+into other languages stays accurate. Keep the names "Seto Inland Sea", "Himeji", "Ganryūjima",
+"Minamoto no Yoshitsune", "Miyamoto Musashi" and "Sasaki Kojirō" untranslated.
+
+[App name] (max 30 characters)
+Pirate King of the Seto Sea
+
+[Short description] (max 80 characters)
+Sail the real Seto Inland Sea in 3D. Take treasure. Sink enemy ships.
+
+[Full description] (max 4000 characters)
+You are Minamoto no Yoshitsune. You are the captain of a pirate ship.
+You start at Himeji port. You sail west across the Seto Inland Sea.
+The sea and more than 140 islands are made in 3D from real map data and real aerial photos.
+Land on the islands and take their treasure. Sink the enemy ships. Your goal is Ganryūjima, where the last battle takes place.
+
+■ BATTLES AT SEA
+• Five gunners stand at the front of your ship. They shoot in the direction your ship faces.
+• Shots hit more often when the enemy is close.
+• Your cannon aims at the enemy in front of your ship and hits many enemies at once.
+• Each enemy ship has 8 crew. When all of them fall, the ship explodes.
+• Large enemy ships also fire cannons. Before they fire, a red ring appears on the sea. Turn your ship to avoid it.
+• The wind blows west. The tide changes during the day. There are whirlpools.
+
+■ BATTLES ON THE ISLANDS
+• A golden light marks each port. Sail into it to land.
+• Use the sword and the spear. Hold the "Full" button to run fast.
+• Each island has real hills, towns, fields, orange trees, rice fields and shrines.
+• More than 800 famous warriors from Japanese history fight you. The farther west you go, the newer their era.
+• A warrior you defeat does not come back.
+
+■ VISIT MORE ISLANDS FOR AN EASIER LAST BATTLE
+• Each treasure makes your ship stronger. Your maximum HP goes up.
+• Warriors from islands you did not visit come to help the enemy in the last battle.
+• Ships you did not sink also come to Ganryūjima. Sink all of them, then reach the island.
+
+■ OTHER FEATURES
+• Fireworks when you take a treasure and when you win.
+• Exciting pirate music.
+• The game saves when you go back to the title screen. Press "Continue" to play again from there.
+• If you fall, you can watch an ad to continue with full HP. You can do this 3 times in one game.
+• Share your results with friends.
+• Japanese and English.
+• The game needs an internet connection to load the islands.
+
+Map data and aerial photos: Geospatial Information Authority of Japan (GSI Tiles)
+Battle system, sound and character: based on "Kobayakawa: Lone Samurai" (TECH GYM)

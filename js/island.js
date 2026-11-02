@@ -38,7 +38,8 @@ function cutaway(m) {
 
 // 戦いの数値（小早川の値を、1 画素 ≒ 4.5cm として m に直したもの）
 const K = {
-  walk: 13.2 * 1.5, dashMul: 1.9, // さらに 1.5 倍（2026-11） // 歩きは小早川の 3 倍（財宝まで速く行けるように） swordR: 2.7, spinR: 3.2, swordArc: 1.25, spearLen: 4.8, spearChargeLen: 5.8, spearHalf: 0.75,
+  walk: 13.2 * 1.5, dashMul: 1.9, // 歩きは小早川の 3 倍（財宝まで速く行けるように）
+  swordR: 2.7, spinR: 3.2, swordArc: 1.25, spearLen: 4.8, spearChargeLen: 5.8, spearHalf: 0.75,
   pr: 0.5, er: 0.42, reach: 1.0, genReach: 1.3, gunRange: 26, bulletSp: 34, knock: 7,
   SPEAR_ST: 14, PIERCE: 2, dmg: 1.24, genHp: 1.29, genHeal: 46, dropRate: 0.05, regen: 1.5,
 };

@@ -1343,7 +1343,7 @@ export class Sea {
     }
     if (want === undefined && d > 240) want = toP;
     else if (want === undefined && d < 70) want = toP + Math.PI * 0.7 * (Math.sin(e.wob) > 0 ? 1 : -1);
-    else if (want === undefined) want = toP + (Math.PI / 2) * (Math.sin(e.wob) > 0 ? 1 : -1) * 0.85; // 舷側を向けて回る
+    else if (want === undefined) want = toP + Math.sin(this.t * 0.4 + e.wob) * 0.35; // 船首を向けて撃ちに来る（少しずつ左右に振れる）
     // 陸を避ける
     const probe = (a, L) => hSea(e.x + Math.cos(a) * L, e.z + Math.sin(a) * L) < -1.5;
     if (!probe(e.h, 25) || !probe(e.h, 12)) {
@@ -1367,16 +1367,22 @@ export class Sea {
       if (P.inv <= 0 && Math.abs(this.P.v) > 15) { this.hurtEnemy(e, Math.abs(P.v) * 1.2, true); P.inv = 0.6; this.floats.add(e.x, 9, e.z, L('体当たり！', 'Ram!'), '#ff9a5a'); }
     }
     // 鉄砲を撃つ
-    if (d < 230 && e.cd <= 0 && e.pursue) {
+    // 船首を自分の船に向けているときだけ、船首の大砲・鉄砲で撃つ
+    const facing = Math.abs(angDiff(toP, e.h)) < 0.7;
+    if (d < 230 && e.cd <= 0 && e.pursue && facing) {
       e.cd = rand(1.6, 2.8) / (e.boss ? 1.6 : 1);
       const lead = d / 140;
       const tx = P.x + Math.cos(P.h) * P.v * lead, tz = P.z + Math.sin(P.h) * P.v * lead;
       for (let i = 0; i < e.guns; i++) {
         setTimeout(() => {
           if (e.sink || this.G.state !== 'play') return;
-          const a = Math.atan2(tz - e.z, tx - e.x) + rand(-0.06, 0.06);
-          this.addBullet(e.x, 2, e.z, Math.cos(a) * 140, 0, Math.sin(a) * 140, 'e', e.dmg, 2.0);
-          this.muzzleFire({ x: e.x + Math.cos(a) * e.r, y: 2.2, z: e.z + Math.sin(a) * e.r }, a);
+          // 船首（舳先）から撃つ
+          const bl = SHIP_LEN[e.type] * ENEMY_SCALE * 0.5;
+          const bx = e.x + Math.cos(e.h) * bl, bz = e.z + Math.sin(e.h) * bl;
+          const a = Math.atan2(tz - bz, tx - bx) + rand(-0.06, 0.06);
+          const ev = [Math.cos(e.h) * Math.max(0, e.v), Math.sin(e.h) * Math.max(0, e.v)];
+          this.addBullet(bx, 2, bz, Math.cos(a) * 140 + ev[0], 0, Math.sin(a) * 140 + ev[1], 'e', e.dmg, 2.0);
+          this.muzzleFire({ x: bx, y: 2.2, z: bz }, a, ev);
           Sfx.gun(clamp(0.45 - d / 700, 0.08, 0.4));
         }, i * 160);
       }

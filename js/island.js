@@ -246,7 +246,8 @@ export class Island {
     return t > -0.05 && t < 1.05 && side < p.hw ? p.y : null;
   }
   inBuilding(x, z) { for (const b of this.bgrid(x, z)) if (insideOBB(b, x, z, 0.35)) return true; return false; }
-  canWalkOpen(x, z) { const N = this.N, half = this.size / 2; const i = Math.round((x + half) / this.cell), j = Math.round((z + half) / this.cell); return i >= 1 && j >= 1 && i < N - 1 && j < N - 1; }
+  // 動くときの判定：家の中も通り抜けられる（主人公の近くの家は透けて見えないので、見えない壁にならないように）
+  canWalkOpen(x, z) { if (this.onPlank(x, z) !== null) return true; const N = this.N, half = this.size / 2; const i = Math.round((x + half) / this.cell), j = Math.round((z + half) / this.cell); return i >= 1 && j >= 1 && i < N - 1 && j < N - 1; }
   canWalk(x, z) {
     if (this.onPlank(x, z) !== null) return true;
     const N = this.N, half = this.size / 2;
@@ -890,9 +891,9 @@ export class Island {
     // 歩けるところだけ（壁に沿って滑る）
     const nx = P.x + P.vx * dt, nz = P.z + P.vz * dt;
     if (this.inBuilding(P.x, P.z) && this.canWalkOpen(nx, nz)) { P.x = nx; P.z = nz; }
-    else if (this.canWalk(nx, nz)) { P.x = nx; P.z = nz; }
-    else if (this.canWalk(nx, P.z)) { P.x = nx; P.vz *= 0.5; }
-    else if (this.canWalk(P.x, nz)) { P.z = nz; P.vx *= 0.5; }
+    else if (this.canWalkOpen(nx, nz)) { P.x = nx; P.z = nz; }
+    else if (this.canWalkOpen(nx, P.z)) { P.x = nx; P.vz *= 0.5; }
+    else if (this.canWalkOpen(P.x, nz)) { P.z = nz; P.vx *= 0.5; }
     else { P.vx *= 0.3; P.vz *= 0.3; }
     const py = this.onPlank(P.x, P.z);
     P.y = py !== null ? Math.max(py, this.hAt(P.x, P.z)) : Math.max(this.hAt(P.x, P.z), -1.0);
@@ -1055,7 +1056,7 @@ export class Island {
     e.flash -= dt; e.trampleCd -= dt;
     if (e.kvx || e.kvz) {
       const nx = e.x + e.kvx * dt, nz = e.z + e.kvz * dt;
-      if (this.canWalk(nx, nz)) { e.x = nx; e.z = nz; }
+      if (this.canWalkOpen(nx, nz)) { e.x = nx; e.z = nz; }
       const k = Math.exp(-dt * 9); e.kvx *= k; e.kvz *= k;
       if (Math.abs(e.kvx) + Math.abs(e.kvz) < 0.2) e.kvx = e.kvz = 0;
     }
@@ -1064,8 +1065,8 @@ export class Island {
     const move = (mx, mz, spd) => {
       const tf = this.slopeFactor(e.x, e.z, mx, mz) * (this.hAt(e.x, e.z) < -0.3 ? 0.5 : 1);
       const nx = e.x + mx * spd * tf * dt, nz = e.z + mz * spd * tf * dt;
-      if (this.canWalk(nx, nz)) { e.x = nx; e.z = nz; }
-      else if (this.canWalk(nx, e.z)) e.x = nx; else if (this.canWalk(e.x, nz)) e.z = nz;
+      if (this.canWalkOpen(nx, nz)) { e.x = nx; e.z = nz; }
+      else if (this.canWalkOpen(nx, e.z)) e.x = nx; else if (this.canWalkOpen(e.x, nz)) e.z = nz;
       e.gait += spd * tf * dt * 1.0; moving = true;
       e.face = Math.atan2(mz, mx);
     };

@@ -91,7 +91,17 @@ Capacitor 8 で Android アプリにしています（パッケージ名 `jp.tec
   - リワード広告：討死したとき、広告を見ると体力満タンで復活（1 ゲーム 3 回まで。8 秒で自動的に結果画面へ）。使った回数は結果画面と共有文に出す
 - タイトル画面にビルド番号・プライバシーポリシー・（EU など必要な地域では）広告の設定
 
-**AdMob のアプリ ID と広告ユニット ID はまだ入っていません。** 今は Google 公式のテスト用アプリ ID（`android/app/src/main/res/values/strings.xml` の `admob_app_id`）で、本番の広告ユニット（`js/ads.js` の `production`）は空です。空の種類は Google Play 用のビルドでは出しません。届いたら差し替えてください。
+Android の AdMob のアプリ ID は `android/app/src/main/res/values/strings.xml` の `admob_app_id`、本番の広告ユニット（バナー・インタースティシャル・リワード）は `js/ads.js` の `UNITS.android.production` に入っています。動作確認用の APK はテスト広告、Google Play 用の AAB だけが本番広告です。
+
+## iOS アプリ
+
+同じ Capacitor のプロジェクトに `ios/` を足して iOS 版にしています（Bundle ID `jp.techgym.kaizoku`、iPhone 専用・縦画面）。構成は techgymjp/jet-fighter の `docs/ANDROID_PORTING.md` の 7 章と同じです。
+
+- Mac での作業手順（ビルド・TestFlight・審査）：`docs/IOS_BUILD.md`
+- App Store の掲載情報と画像：`docs/store/ios/`
+- `npm run ios:sync`（テスト広告）／ `npm run ios:release`（本番広告。App Store 用）／ `npm run ios:open`
+- GitHub Actions（`.github/workflows/ios.yml`）が push のたびに、署名なしでシミュレーター向けにビルドできるかを確認します
+- **iOS 用の AdMob の ID はまだ入っていません**。`ios/App/App/Info.plist` の `GADApplicationIdentifier` は Google のテスト用、`js/ads.js` の `UNITS.ios.production` は空です（空の種類は本番では出しません）
 
 ## ライセンス
 

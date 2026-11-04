@@ -101,7 +101,7 @@ Android の AdMob のアプリ ID は `android/app/src/main/res/values/strings.x
 - App Store の掲載情報と画像：`docs/store/ios/`
 - `npm run ios:sync`（テスト広告）／ `npm run ios:release`（本番広告。App Store 用）／ `npm run ios:open`
 - GitHub Actions（`.github/workflows/ios.yml`）が push のたびに、署名なしでシミュレーター向けにビルドできるかを確認します
-- **iOS 用の AdMob の ID はまだ入っていません**。`ios/App/App/Info.plist` の `GADApplicationIdentifier` は Google のテスト用、`js/ads.js` の `UNITS.ios.production` は空です（空の種類は本番では出しません）
+- iOS の AdMob のアプリ ID は `ios/App/App/Info.plist` の `GADApplicationIdentifier`、本番の広告ユニット（バナー・インタースティシャル・リワード）は `js/ads.js` の `UNITS.ios.production` に入っています
 
 ## ライセンス
 

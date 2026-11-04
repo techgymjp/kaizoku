@@ -10,7 +10,7 @@
 - 広告：AdMob（iOS 用のアプリと広告ユニット。バナー・インタースティシャル・リワード）。起動時に「トラッキングの許可」の確認画面が出ます
 - 島の地形と空中写真は、遊んでいる間に国土地理院のサーバーから読み込みます（通信が必要）
 
-> **iOS 用の AdMob の ID がまだ入っていない間**は、`ios/App/App/Info.plist` の `GADApplicationIdentifier` が Google のテスト用のアプリ ID になっています。iOS 用のアプリ ID と広告ユニット ID（バナー・インタースティシャル・リワード）を Claude Code に渡すと、`Info.plist` と `js/ads.js` に入れます。**App Store に出す前に必ず入れ替えてください**。
+> AdMob の iOS 用のアプリ ID は `ios/App/App/Info.plist` の `GADApplicationIdentifier`、本番の広告ユニット（バナー・インタースティシャル・リワード）は `js/ads.js` の `UNITS.ios.production` に入っています。広告ユニットを作り直したときは、新しい ID を Claude Code に渡して入れ直してもらいます。
 
 ---
 

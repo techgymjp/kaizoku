@@ -24,7 +24,12 @@ window.Ads = (() => {
         rewarded: 'ca-app-pub-3940256099942544/1712485313',
         banner: 'ca-app-pub-3940256099942544/2934735716',
       },
-      production: { interstitial: '', rewarded: '', banner: '' },
+      // 本番の広告ユニット（AdMob の iOS アプリ「瀬戸内の海賊王」）
+      production: {
+        interstitial: '',
+        rewarded: '',
+        banner: 'ca-app-pub-6411535997477460/6239142612',
+      },
     },
   };
   const RETRY_MS = 20000;      // 読み込みに失敗したら少し待って再挑戦する

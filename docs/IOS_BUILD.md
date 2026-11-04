@@ -95,7 +95,6 @@ npm run ios:open
 
 1. App Store Connect の「TestFlight」→「内部テスト」でグループを作り、自分を追加する
 2. iPhone に「TestFlight」アプリを App Store から入れ、届いた招待から瀬戸内の海賊王をインストールする
-3. 初回の審査で求められることが多いので、**アプリの起動から遊ぶところまでを画面収録**しておく（iPhone のコントロールセンターの「画面収録」）
 
 ---
 
@@ -129,7 +128,8 @@ Google の「Apple の App Store のデータ開示要件への準備」（AdMob
 
 ### 審査へのメモ（最初の提出から「メモ」に入れておく）
 
-初回の審査で「Guideline 2.1 - Information Needed」が来ることが多いので、はじめから入れておきます。2.1 が来たら、同じ文に 4 章の画面収録を添えて返信します（動画が大きすぎて添付できないときは、Finder で右クリック →「選択したビデオファイルをエンコード」→ 720p で小さくする）。
+初回の審査で「Guideline 2.1 - Information Needed」が来ることが多いので、はじめから入れておきます。2.1 が来たら、同じ文を App Review への返信に貼ります（実機の画面録画の添付は不要）。
+6 と 7 は、デザインスパム（Guideline 4.3 Spam）と最低限の機能（Guideline 4.2 Minimum Functionality）への先回りの説明です。同じ開発者アカウントから Capacitor の同じ構成のアプリを続けて出しているので、「同じ作りのアプリの量産」や「Web サイトを包んだだけ」と見られないように入れています。ひな形は techgymjp/jet-fighter の `docs/ANDROID_PORTING.md` の 7-6 です。
 
 ```
 1. Purpose and audience: Pirate King of the Seto Sea is a free action game for ages 13+. The player sails a pirate ship across a 3D model of Japan's real Seto Inland Sea, fights enemy ships with muskets and a cannon, lands on islands to fight historical samurai with a sword and spear, takes their treasure, and wins a final naval battle at Ganryujima.
@@ -141,6 +141,10 @@ Google の「Apple の App Store のデータ開示要件への準備」（AdMob
 4. Regional differences: None, except that the ad consent form appears only where required (e.g. EEA/UK).
 
 5. Regulated content / third-party material: The game is not in a regulated industry. The terrain, aerial photos and buildings are processed from GSI Tiles (Geospatial Information Authority of Japan), which may be used with attribution under the GSI terms of use; the attribution is shown on the title screen and in the App Store description. The battle system, sounds and main character come from our own game "Kobayakawa: Lone Samurai" (TECH GYM). All other graphics and music are original.
+
+6. Originality (Guideline 4.3): Pirate King of the Seto Sea is an original app that we designed and built ourselves. It does not copy or imitate any other app, and it is not made from a template, a purchased source code or a re-skin of another game. The 3D model of the Seto Inland Sea and its more than 140 inhabited islands, the ships, the list of more than 800 historical warlords, the music and the naval sound effects were created specifically for this app. It is also not a template-based variation of our other apps. Each of our games has its own game system that we designed and programmed individually for that title, and we do not reuse a game template from one app to make another, even when two of our games are in the same genre. This game's system (sailing with real tides, wind and whirlpools; the bow musketeer volley with distance-based hit chance and the aimed cannon; enemy ships with eight crew that blow themselves up when all crew fall; enemy cannon fire that is announced in advance so it can be dodged; landing on islands whose terrain, photos and buildings are built from GSI map data; warlords assigned by historical era who never come back once defeated; and a final battle where every ship left afloat and every skipped island's warlord gathers) was built only for this title, and its gameplay, content and visuals are its own. The on-foot sword and spear combat on the islands, its sound effects and the main character are adapted from our own earlier game "Kobayakawa: Lone Samurai" (TECH GYM), and this is credited on the title screen. Only standard technical parts, such as the Capacitor app shell and the AdMob ad integration, are shared across our apps. We publish this game as a single app with one Bundle ID; there are no other versions of it on the App Store (for example, no separate free and paid editions or regional copies).
+
+7. App functionality (Guideline 4.2): The app is not a website wrapper. The game code, the terrain data of the whole Seto Inland Sea, the island list, the 3D models, the music and the sound effects are bundled in the app. Only the detailed terrain, aerial photos and buildings of the island the player lands on are downloaded while playing, from the GSI Tiles map service; without a connection the islands can still be played with coarse terrain. It also uses native iOS features such as the share sheet and App Tracking Transparency.
 ```
 
 入力が終わったら「審査用に追加」→「審査へ提出」。

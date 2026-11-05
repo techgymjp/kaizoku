@@ -358,5 +358,10 @@ body.native .share-x, body.native .share-line { display: none; }
 body.native .share-native { display: inline-block; }
 #buildInfo:not(:empty)::after { content: "｜"; }
 .legal a { color: rgba(255,255,255,.8); }
+/* Web 版だけの Google Play へのリンク */
+.store-links { margin: 12px 0 0; }
+.store-links a { display: inline-block; font-size: 14px; padding: 6px 16px; border-radius: 16px; color: #fff; text-decoration: none; background: rgba(0,0,0,.45); border: 1px solid rgba(120,220,140,.7); }
+.store-links a:hover { background: rgba(40,140,70,.6); }
+@media (max-height: 560px) { .store-links { margin-top: 6px; } .store-links a { font-size: 12px; padding: 4px 12px; } }
 /* アプリではバナー広告の分だけ下をあける */
 body.native #title .title-inner, body.native #result .panel, body.native #pause .panel { margin-bottom: 64px; }

@@ -26,6 +26,9 @@
   .lang button.on { background: var(--red); }
   ul { padding-left: 1.3em; } li { margin: 4px 0; }
   .en { display: none; } body.en .en { display: block; } body.en .ja { display: none; }
+  .store { text-align: center; margin: 24px 0 8px; }
+  .store a { display: inline-block; font-size: 14px; padding: 6px 16px; border-radius: 16px; color: #fff; text-decoration: none; background: rgba(0,0,0,.45); border: 1px solid rgba(120,220,140,.7); }
+  .store a span.en { display: none; } body.en .store a span.en { display: inline; }
   body.en span.en, body.en kbd.en { display: inline; }
   .note { color: #c8b890; font-size: 13px; }
 </style>
@@ -128,6 +131,8 @@
     <li>Minimap: yellow arrow = you, red dots = enemies, ⚓ = ports. “Back to title” in the pause menu saves your game; use “Continue” on the title screen.</li>
   </ul>
 </div>
+<!-- Web 版だけ：Android アプリへのリンク（アプリの中では出さない） -->
+<p id="storeLinks" class="store" hidden><a href="https://play.google.com/store/apps/details?id=jp.techgym.kaizoku" target="_blank" rel="noopener"><span class="ja">▶ Android アプリ版を Google Play で入手</span><span class="en">▶ Get the Android app on Google Play</span></a></p>
 </main>
 <script>
   const set = (l) => { document.body.classList.toggle('en', l === 'en'); document.documentElement.lang = l; for (const b of document.querySelectorAll('.lang button')) b.classList.toggle('on', b.dataset.l === l); try { localStorage.setItem('kaizoku.lang', l); } catch (e) {} };
@@ -138,6 +143,9 @@
   // 広告のぶん下をあける
   if (window.parent !== window) document.body.style.paddingBottom = '70px';
   for (const b of document.querySelectorAll('.lang button')) b.addEventListener('click', () => set(b.dataset.l));
+  // Android / iOS アプリの中（ゲームの中に重ねて出す）ではストアへのリンクを出さない
+  const cap = window.Capacitor || (() => { try { return window.parent !== window ? window.parent.Capacitor : null; } catch (e) { return null; } })();
+  if (!(cap && cap.isNativePlatform && cap.isNativePlatform())) document.getElementById('storeLinks').hidden = false;
 </script>
 </body>
 </html>

@@ -217,6 +217,7 @@ const cap = window.Capacitor;
 const native = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
 window.GameAudio = Sfx; // 広告を出している間は音を止める（js/ads.js から呼ぶ）
 if (native) document.body.classList.add('native');
+else $('storeLinks').hidden = false; // Web 版だけ Google Play へのリンクを出す
 $('buildInfo').textContent = window.APP_VERSION && window.APP_VERSION !== 'dev' ? window.APP_VERSION : '';
 if (window.Ads) {
   Ads.initDone.then(() => { if (Ads.privacyOptionsRequired) $('adPrivacy').hidden = false; });

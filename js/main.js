@@ -217,7 +217,9 @@ const cap = window.Capacitor;
 const native = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
 window.GameAudio = Sfx; // 広告を出している間は音を止める（js/ads.js から呼ぶ）
 if (native) document.body.classList.add('native');
-else $('storeLinks').hidden = false; // Web 版だけ Google Play へのリンクを出す
+// web-only:start（Web 版だけ。アプリ用のビルドでは scripts/build-web.js が取り除く）
+if (!native) $('storeLinks').hidden = false; // Google Play へのリンクを出す
+// web-only:end
 $('buildInfo').textContent = window.APP_VERSION && window.APP_VERSION !== 'dev' ? window.APP_VERSION : '';
 if (window.Ads) {
   Ads.initDone.then(() => { if (Ads.privacyOptionsRequired) $('adPrivacy').hidden = false; });
@@ -540,6 +542,8 @@ addEventListener('pointerdown', () => { if (!paused()) Sfx.resume(); }, true);
 addEventListener('touchstart', () => { if (!paused()) Sfx.resume(); }, { capture: true, passive: true });
 setInterval(() => { if (!document.hidden && !paused() && Sfx.state === 'interrupted') Sfx.resume(); }, 2000);
 
+// web-only:start（確認・撮影用。アプリ用のビルドでは取り除く）
 window.__kz = { get G() { return G; }, get sea() { return sea; }, get island() { return island; }, I,
   setPR(v) { perf.fixed = true; pixelRatio = v; renderer.setPixelRatio(v); renderer.setSize(innerWidth, innerHeight); } }; // 確認・撮影用
+// web-only:end
 boot().catch((e) => { console.error(e); setLoad('読み込みに失敗しました / Failed to load: ' + e.message); });

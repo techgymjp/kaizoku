@@ -10,6 +10,26 @@ for (const item of ['index.html', 'howto.html', 'style.css', 'js', 'data', 'asse
   const src = path.join(root, item);
   if (fs.existsSync(src)) fs.cpSync(src, path.join(out, item), { recursive: true });
 }
+// アプリ（Android / iOS）に同梱するときは、Web 版だけの部分（Google Play へのリンク、撮影用のフック）を取り除く。
+// iOS の審査では、アプリの中で隠しているだけの機能も「審査中に隠した機能」（Guideline 5.6）と見なされるため、最初から入れない
+if (process.env.APP_BUILD === '1') {
+  const strip = (rel, re) => {
+    const file = path.join(out, rel);
+    const before = fs.readFileSync(file, 'utf8');
+    const after = before.replace(re, '');
+    if (after === before) { console.error(`${rel} に web-only の目印が見つかりません`); process.exit(1); }
+    fs.writeFileSync(file, after);
+  };
+  const HTML = /[ \t]*<!-- web-only[\s\S]*?<!-- \/web-only -->\n?/g, JS = /[ \t]*\/\/ web-only:start[\s\S]*?\/\/ web-only:end\n?/g;
+  strip('index.html', HTML);
+  strip('howto.html', HTML); strip('howto.html', JS);
+  strip('js/main.js', JS);
+  for (const rel of ['index.html', 'howto.html', 'js/main.js']) {
+    if (/play\.google\.com|apps\.apple\.com|web-only|__kz|storeLinks/.test(fs.readFileSync(path.join(out, rel), 'utf8'))) {
+      console.error(`${rel} に Web 版だけの部分が残っています`); process.exit(1);
+    }
+  }
+}
 // Google Play / App Store 用のビルドでは本番の広告を使う
 const mode = process.env.ADMOB_MODE === 'production' ? 'production' : 'test';
 fs.writeFileSync(path.join(out, 'js', 'ads-config.js'), `// ビルド時に生成\nwindow.AD_MODE = '${mode}';\n`);
@@ -19,4 +39,4 @@ const version = process.env.VERSION_CODE ? `v${process.env.VERSION_NAME || pkgVe
 fs.writeFileSync(path.join(out, 'js', 'build-info.js'), `// ビルド時に生成\nwindow.APP_VERSION = '${version}';\n`);
 // 読み込みの版番号（index.html が見る）
 fs.writeFileSync(path.join(out, 'version.txt'), (process.env.VERSION_CODE || pkgVersion).toString());
-console.log(`built web assets into www/ (ads: ${mode}, version: ${version})`);
+console.log(`built web assets into www/ (${process.env.APP_BUILD === '1' ? 'app' : 'web'}, ads: ${mode}, version: ${version})`);

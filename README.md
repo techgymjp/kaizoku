@@ -100,6 +100,7 @@ Android の AdMob のアプリ ID は `android/app/src/main/res/values/strings.x
 - Mac での作業手順（ビルド・TestFlight・審査）：`docs/IOS_BUILD.md`
 - App Store の掲載情報と画像：`docs/store/ios/`
 - `npm run ios:sync`（テスト広告）／ `npm run ios:release`（本番広告。App Store 用）／ `npm run ios:open`
+- アプリ用のビルド（`npm run build:app`）では、Web 版だけの部分（Google Play へのリンク、確認・撮影用の `window.__kz`）を取り除きます。`<!-- web-only -->`〜`<!-- /web-only -->`、`// web-only:start`〜`// web-only:end` で囲んだ範囲です（iOS の審査の Guideline 5.6 対策）
 - GitHub Actions（`.github/workflows/ios.yml`）が push のたびに、署名なしでシミュレーター向けにビルドできるかを確認します
 - iOS の AdMob のアプリ ID は `ios/App/App/Info.plist` の `GADApplicationIdentifier`、本番の広告ユニット（バナー・インタースティシャル・リワード）は `js/ads.js` の `UNITS.ios.production` に入っています
 

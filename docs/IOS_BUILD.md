@@ -204,5 +204,6 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | tr -d '\n' | pbcopy
 | 「審査用に追加できません」 | 「コンテンツの配信権」と「アプリのプライバシー」のプライバシーポリシー URL が入っているか確認する |
 | 6.9 インチのスクリーンショットがアップロードできない | 欄が「中型ディスプレイ」。`docs/store/ios/6.3inch/` の画像を使う |
 | 島に上陸すると、地形が出るまで時間がかかる・出ない | 通信が必要。Wi-Fi か電波のよい所で試す |
+| Guideline 5.6（審査中に隠した機能）でリジェクト | Web 版だけの部分（Google Play へのリンクと、アプリの中でそれを隠す処理、撮影用のフック）がアプリに入っていると、そう見なされる。これらは `<!-- web-only -->`〜`<!-- /web-only -->`、`// web-only:start`〜`// web-only:end` で囲んであり、アプリ用のビルド（`npm run build:app`。`ios:sync`・`ios:release`・GitHub Actions はこれを使う）で取り除かれる。残っているとビルドが止まる。Web 版だけの部分を足すときは必ず目印で囲む。再提出では「Web 版用のリンクと隠す処理がバンドルに入っていたので取り除いた。審査中と審査後で機能は同じ」と返信する |
 | 本番広告とテスト広告の取り違え | App Store 用は必ず `npm run ios:release`。Xcode から実機で試すときは `npm run ios:sync` に戻す |
 | App Store の審査で「Xcode が古い」と言われる | Xcode を最新版に更新してから Archive し直す |

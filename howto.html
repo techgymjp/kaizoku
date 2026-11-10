@@ -131,8 +131,9 @@
     <li>Minimap: yellow arrow = you, red dots = enemies, ⚓ = ports. “Back to title” in the pause menu saves your game; use “Continue” on the title screen.</li>
   </ul>
 </div>
-<!-- Web 版だけ：Android アプリへのリンク（アプリの中では出さない） -->
+<!-- web-only：Web 版だけ。Android アプリへのリンク（アプリ用のビルドでは scripts/build-web.js が取り除く） -->
 <p id="storeLinks" class="store" hidden><a href="https://play.google.com/store/apps/details?id=jp.techgym.kaizoku" target="_blank" rel="noopener"><span class="ja">▶ Android アプリ版を Google Play で入手</span><span class="en">▶ Get the Android app on Google Play</span></a></p>
+<!-- /web-only -->
 </main>
 <script>
   const set = (l) => { document.body.classList.toggle('en', l === 'en'); document.documentElement.lang = l; for (const b of document.querySelectorAll('.lang button')) b.classList.toggle('on', b.dataset.l === l); try { localStorage.setItem('kaizoku.lang', l); } catch (e) {} };
@@ -143,9 +144,11 @@
   // 広告のぶん下をあける
   if (window.parent !== window) document.body.style.paddingBottom = '70px';
   for (const b of document.querySelectorAll('.lang button')) b.addEventListener('click', () => set(b.dataset.l));
+  // web-only:start（Web 版だけ。Google Play へのリンクを出す。アプリ用のビルドでは取り除く）
   // Android / iOS アプリの中（ゲームの中に重ねて出す）ではストアへのリンクを出さない
   const cap = window.Capacitor || (() => { try { return window.parent !== window ? window.parent.Capacitor : null; } catch (e) { return null; } })();
   if (!(cap && cap.isNativePlatform && cap.isNativePlatform())) document.getElementById('storeLinks').hidden = false;
+  // web-only:end
 </script>
 </body>
 </html>

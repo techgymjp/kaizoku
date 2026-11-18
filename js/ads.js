@@ -14,7 +14,7 @@ window.Ads = (() => {
       // 本番の広告ユニット（AdMob の Android アプリ「瀬戸内の海賊王」）
       production: {
         interstitial: 'ca-app-pub-6411535997477460/4256675205',
-        rewarded: 'ca-app-pub-6411535997477460/7400196955',
+        rewarded: 'ca-app-pub-6411535997477460/4096893104',
         banner: 'ca-app-pub-6411535997477460/5569756878',
       },
     },

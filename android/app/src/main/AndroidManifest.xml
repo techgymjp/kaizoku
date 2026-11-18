@@ -36,4 +36,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 画面は縦向きに固定しているが、縦向きの画面がない端末（Chromebook など）でも入れられるよう「必須ではない」と明示する -->
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
 </manifest>

@@ -1,0 +1,32 @@
+Guideline 4.3 (Spam) への説明（英語）
+- 審査へのメモ（docs/IOS_BUILD.md の 5 章）の 6 番を詳しくしたもの。4.3(a) でリジェクトされたときに App Review への返信に貼る
+- 返信しても同じ理由でリジェクトされたら、再提出せずに App Review Board に異議申し立てをする（developer.apple.com/contact/app-store/?topic=appeal。App の Apple ID・提出 ID・ガイドライン 4.3(a) を入れて、下の文を貼る）。同じ内容のまま何度も再提出しない
+
+----------------------------------------------------------------
+
+Thank you for your review. We would like to explain why Pirate King of the Seto Sea is not a copy or a template-based variation of another app.
+
+1. One app, one Bundle ID
+We publish this game as a single app (jp.techgym.kaizoku). There are no other versions of it on the App Store: no free and paid editions, no regional copies, and no re-skinned clones under other names.
+
+2. Content made only for this app
+- A 3D model of Japan's real Seto Inland Sea from Himeji to Ganryujima, with more than 140 inhabited islands. Each island's terrain, aerial photo and buildings are built at run time from official map data of the Geospatial Information Authority of Japan (credited in the app).
+- Real-world sailing conditions: a westerly wind, tidal currents that change direction over time and run fast in the straits, and whirlpools.
+- A roster of more than 800 historical Japanese warlords from the Heian period to the end of the Edo period, assigned to islands by era from east to west.
+- The ships, the pirate captain's crest, the music and the naval sound effects.
+
+3. A game system designed only for this title
+- Naval combat: five musketeers on the bow fire in the direction the ship faces, with a hit chance that depends on distance; a bow cannon aims at the nearest ship ahead and predicts its course.
+- Enemy ships each carry eight crew; when all of them fall, the ship blows itself up. Large enemy ships fire cannons that are announced in advance with a red ring on the sea, so the player can dodge by steering.
+- Landing: sailing into a port marked by a golden pillar of light lands the player on that island, where they fight the island's warlords on foot and take its treasure.
+- Progression: every treasure raises the ship's maximum HP; a warlord who is defeated never appears again.
+- Final battle: every ship the player left afloat during the voyage, and the warlords of every island the player skipped, gather at Ganryujima for the last battle.
+No other app of ours has these mechanics. The sea, the islands, the enemies and the goal of this game exist only in this app.
+
+4. What is shared with our other apps
+We are a small studio, and all of our games are built with the same technology: the Capacitor app shell, three.js for 3D graphics, and the same Google AdMob integration. These are standard technical parts, not game content. The on-foot sword and spear combat on the islands is adapted from our own earlier game "Kobayakawa: Lone Samurai", and this is credited on the title screen. Everything else listed above was designed and programmed for this title.
+
+5. Not a template
+Each of our games has its own game system that we design and program individually. We do not take one game and change its graphics, names or settings to make another, and we do not use purchased source code or app templates.
+
+If any specific part of the app looks similar to another app, please let us know which part, and we will explain or change it.

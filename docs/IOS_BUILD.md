@@ -205,5 +205,6 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | tr -d '\n' | pbcopy
 | 6.9 インチのスクリーンショットがアップロードできない | 欄が「中型ディスプレイ」。`docs/store/ios/6.3inch/` の画像を使う |
 | 島に上陸すると、地形が出るまで時間がかかる・出ない | 通信が必要。Wi-Fi か電波のよい所で試す |
 | Guideline 5.6（審査中に隠した機能）でリジェクト | Web 版だけの部分（Google Play へのリンクと、アプリの中でそれを隠す処理、撮影用のフック）がアプリに入っていると、そう見なされる。これらは `<!-- web-only -->`〜`<!-- /web-only -->`、`// web-only:start`〜`// web-only:end` で囲んであり、アプリ用のビルド（`npm run build:app`。`ios:sync`・`ios:release`・GitHub Actions はこれを使う）で取り除かれる。残っているとビルドが止まる。Web 版だけの部分を足すときは必ず目印で囲む。再提出では「Web 版用のリンクと隠す処理がバンドルに入っていたので取り除いた。審査中と審査後で機能は同じ」と返信する |
+| 「Guideline 4.3(a) - Spam」でリジェクト（ほかのアプリと似ている） | 同じアカウントから Capacitor の同じ構成のゲームを続けて出していると起きる。`docs/store/ios/review-reply-4.3.txt` の英文を App Review への返信に貼る。返信しても同じ理由でリジェクトされたら、**再提出せずに** App Review Board に異議申し立てをする（developer.apple.com/contact/app-store/?topic=appeal。App の Apple ID・提出 ID・ガイドライン 4.3(a) を入れて同じ英文を貼る）。同じ内容のまま何度も再提出すると、審査の長期化やアカウント停止の警告がある（JET STRIKE の例） |
 | 本番広告とテスト広告の取り違え | App Store 用は必ず `npm run ios:release`。Xcode から実機で試すときは `npm run ios:sync` に戻す |
 | App Store の審査で「Xcode が古い」と言われる | Xcode を最新版に更新してから Archive し直す |
